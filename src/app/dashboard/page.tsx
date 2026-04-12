@@ -12,6 +12,9 @@ import { MetricCard } from "@/components/ui/metric-card"
 import { Chips } from "@/components/chips"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { ArrowUpIcon, ArrowDownIcon, ChartLineUpIcon, InfoIcon } from "@phosphor-icons/react"
+import { PeriodFilter } from "@/components/period-filter"
+import { DashboardMetrics, DashboardBreakdown } from "@/components/dashboard-metrics"
+import { BalanceHero } from "@/components/balance-hero"
 import { useTransactions, calculateFinancialSummary, calculateIncomeBreakdown, calculateExpenseBreakdown, formatCurrency, formatDate, FinancialSummary, IncomeBreakdown, ExpenseBreakdown, categories } from "@/hooks/use-transactions"
 import { usePlannedAmounts, calculatePlannedVsActual, PlannedVsActualItem } from "@/hooks/use-planned-amounts"
 import { useGoals } from "@/hooks/use-goals"
@@ -270,23 +273,11 @@ export default function DashboardPage() {
       </div>
 
       {/* Period Filter */}
-      <div className="flex gap-2" role="tablist" aria-label="Filtrar por período">
-        {periods.map((p) => (
-          <button
-            key={p.value}
-            role="tab"
-            aria-selected={period === p.value}
-            onClick={() => setPeriod(p.value)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
-              period === p.value
-                ? "bg-primary text-primary-foreground"
-                : "bg-card text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
+      <PeriodFilter
+        periods={periods}
+        value={period}
+        onChange={(value) => setPeriod(value as Period)}
+      />
 
       {/* Temporal Context */}
       {getTemporalContext() && (
@@ -311,54 +302,7 @@ export default function DashboardPage() {
 
       {/* Balance Hero - Financial Planning Model */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
-        <Card className="bg-gradient-to-br from-card to-surface-overlay border-none">
-          <CardContent className="pt-6 space-y-4">
-            <div className="relative">
-              <div className="flex items-center gap-1">
-                <p className="text-sm font-medium text-muted-foreground">{getBalanceMessage()}</p>
-                <Tooltip>
-                  <TooltipTrigger>
-                    <span suppressHydrationWarning className="inline-flex items-center justify-center w-4 h-4 cursor-help">
-                      <InfoIcon className="h-4 w-4 text-muted-foreground/60 hover:text-muted-foreground" weight="bold" />
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" sideOffset={4}>
-                    <p>Mostra quanto sobra no período para uso, considerando o comprometido, a provisão e o que já foi separado em alocações.</p>
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-              <p className={`font-heading text-5xl font-bold mt-2 ${getBalanceColor()}`}>
-                {formatCurrency(financialSummary.availableBalance)}
-              </p>
-              {getFinancialInterpretation() && (
-                <p className={`text-sm mt-2 ${getFinancialInterpretation()?.color}`}>
-                  {getFinancialInterpretation()?.text}
-                </p>
-              )}
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <ArrowUpIcon className="h-4 w-4 text-green-400" weight="bold" />
-                <span>Receitas: {formatCurrency(financialSummary.totalIncome)}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <ArrowDownIcon className="h-4 w-4 text-red-400" weight="bold" />
-                <span>Comprometido: {formatCurrency(financialSummary.committedExpenses)}</span>
-              </div>
-              {financialSummary.applications > 0 && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <ChartLineUpIcon className="h-4 w-4 text-blue-400" weight="bold" />
-                  <span>Alocações: {formatCurrency(financialSummary.applications)}</span>
-                </div>
-              )}
-              {financialSummary.monthlyProvisionedTotal > 0 && (
-                <div className="text-xs text-muted-foreground pt-1">
-                  Provisão mensal: {formatCurrency(financialSummary.monthlyProvisionedTotal)} (anuais/ocasionais)
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        <BalanceHero summary={financialSummary} />
 
         {/* Active Goals Progress */}
         <Card>

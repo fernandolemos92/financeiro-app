@@ -6,6 +6,8 @@ import { Modal, ModalLarge } from "@/components/ui/modal"
 import { Button } from "@/components/ui/button"
 import { useTransactions } from "@/hooks/use-transactions"
 import { Chips } from "@/components/chips"
+import { InsightsHealthCard } from "@/components/insights-health"
+import { InsightsRecommendations } from "@/components/insights-recommendations"
 
 type HealthStatus = "bom" | "atencao" | "otimo"
 
@@ -418,40 +420,19 @@ export default function InsightsPage() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card 
-          className="bg-gradient-to-br from-secondary/10 to-transparent border-secondary/20 cursor-pointer hover:border-secondary/40 transition-colors"
-          onClick={() => setShowHealthModal(true)}
-        >
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-lg">Saúde Financeira</CardTitle>
             <span className="text-xs text-muted-foreground">ver detalhes</span>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-6">
-              <div className="h-20 w-20 rounded-full bg-primary/20 flex items-center justify-center text-4xl">
-                {healthInfo.icon}
-              </div>
-              <div className="flex-1">
-                <p className={`font-heading text-2xl font-semibold ${healthInfo.color}`}>
-                  {healthInfo.label}
-                </p>
-                <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                  {healthJustification}
-                </p>
-              </div>
-            </div>
-            {healthFactors.length > 0 && (
-              <div className="mt-4 pt-4 border-t border-border/30">
-                <p className="text-xs text-muted-foreground mb-2">Fatores do estado:</p>
-                <div className="flex flex-wrap gap-2">
-                  {healthFactors.map((factor, idx) => (
-                    <span key={idx} className="text-xs bg-muted px-2 py-1 rounded text-muted-foreground">
-                      {factor}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
+            <InsightsHealthCard
+              status={healthStatus}
+              info={healthInfo}
+              justification={healthJustification}
+              factors={healthFactors}
+              onOpen={() => setShowHealthModal(true)}
+            />
           </CardContent>
         </Card>
 
@@ -460,59 +441,12 @@ export default function InsightsPage() {
             <CardTitle className="text-lg">Recomendações</CardTitle>
             <span className="text-xs text-muted-foreground">{recommendations.length} itens</span>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {hasData ? (
-              recommendations.length > 0 ? (
-                recommendations.map((rec) => (
-                  <div 
-                    key={rec.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => openRecDetail(rec)}
-                    onKeyDown={(e) => e.key === "Enter" && openRecDetail(rec)}
-                    className="flex gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
-                  >
-                    <div className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                      rec.type === "alerta" 
-                        ? "bg-secondary/20" 
-                        : rec.type === "observacao" 
-                          ? "bg-yellow-400/20" 
-                          : "bg-green-400/20"
-                    }`}>
-                      <span className={`text-sm ${
-                        rec.type === "alerta" 
-                          ? "text-secondary" 
-                          : rec.type === "observacao" 
-                            ? "text-yellow-400" 
-                            : "text-green-400"
-                      }`}>
-                        {rec.type === "alerta" ? "!" : rec.type === "observacao" ? "●" : "✓"}
-                      </span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">
-                        {rec.type}
-                      </p>
-                      <p className="text-sm text-foreground line-clamp-2">
-                        {rec.fact}
-                      </p>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-4">
-                  <p className="text-muted-foreground text-sm">
-                    Adicione transações para receber recomendações
-                  </p>
-                </div>
-              )
-            ) : (
-              <div className="text-center py-4">
-                <p className="text-muted-foreground text-sm">
-                  Adicione transações para receber recomendações
-                </p>
-              </div>
-            )}
+          <CardContent>
+            <InsightsRecommendations
+              recommendations={recommendations}
+              hasData={hasData}
+              onSelect={openRecDetail}
+            />
           </CardContent>
         </Card>
       </div>

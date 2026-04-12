@@ -215,7 +215,7 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
                     <button
                       key={it.value}
                       type="button"
-                      onClick={() => setIncomeType(it.value)}
+                      onClick={() => setIncomeType(it.value as IncomeType)}
                       className={`p-3 rounded-lg border text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card ${
                         incomeType === it.value
                           ? "bg-primary/20 border-primary/40"
@@ -342,7 +342,7 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
                       <button
                         key={freq.value}
                         type="button"
-                        onClick={() => setFrequency(freq.value)}
+                        onClick={() => setFrequency(freq.value as Frequency)}
                         className={`p-2 rounded-lg border text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card ${
                           frequency === freq.value
                             ? "bg-primary/20 border-primary/40"

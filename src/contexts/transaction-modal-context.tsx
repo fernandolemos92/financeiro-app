@@ -2,16 +2,24 @@
 
 import * as React from "react"
 import { AddTransactionModal } from "@/components/transaction-modal"
-import { useTransactions } from "@/hooks/use-transactions"
+import { useTransactions, Transaction } from "@/hooks/use-transactions"
 import { toast } from "sonner"
 
-interface TransactionModalContextType {
+export interface TransactionModalState {
   isOpen: boolean
-  openModal: () => void
-  closeModal: () => void
 }
 
-const TransactionModalContext = React.createContext<TransactionModalContextType | undefined>(undefined)
+export interface TransactionModalActions {
+  openModal: () => void
+  closeModal: () => void
+  toggleModal: () => void
+}
+
+export interface TransactionModalMutations {
+  createTransaction: (data: Omit<Transaction, "id" | "createdAt">) => Transaction
+}
+
+const TransactionModalContext = React.createContext<TransactionModalState & TransactionModalActions & TransactionModalMutations | undefined>(undefined)
 
 export function TransactionModalProvider({ children }: { children: React.ReactNode }) {
   const [isOpen, setIsOpen] = React.useState(false)
@@ -19,15 +27,21 @@ export function TransactionModalProvider({ children }: { children: React.ReactNo
 
   const openModal = () => setIsOpen(true)
   const closeModal = () => setIsOpen(false)
+  const toggleModal = () => setIsOpen(prev => !prev)
 
-  const handleAdd = (data: Parameters<typeof addTransaction>[0]) => {
-    addTransaction(data)
-    closeModal()
+  const createTransaction = (data: Omit<Transaction, "id" | "createdAt">): Transaction => {
+    const transaction = addTransaction(data)
     toast.success("Transação criada com sucesso")
+    return transaction
+  }
+
+  const handleAdd = (data: Omit<Transaction, "id" | "createdAt">) => {
+    createTransaction(data)
+    closeModal()
   }
 
   return (
-    <TransactionModalContext.Provider value={{ isOpen, openModal, closeModal }}>
+    <TransactionModalContext.Provider value={{ isOpen, openModal, closeModal, toggleModal, createTransaction }}>
       {children}
       <AddTransactionModal
         isOpen={isOpen}
