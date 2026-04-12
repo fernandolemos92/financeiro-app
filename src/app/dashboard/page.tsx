@@ -374,11 +374,13 @@ export default function DashboardPage() {
                   const progress = goal.targetAmount > 0 ? Math.round((goal.currentAmount / goal.targetAmount) * 100) : 0
                   const remaining = Math.max(goal.targetAmount - goal.currentAmount, 0)
                   return (
-                    <button
+                    <div
                       key={goal.id}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => setSelectedGoal(goal.id)}
-                      className="w-full text-left space-y-2 p-2 rounded-lg hover:bg-muted/50 transition-colors"
-                      suppressHydrationWarning
+                      onKeyDown={(e) => e.key === "Enter" && setSelectedGoal(goal.id)}
+                      className="w-full text-left space-y-2 p-2 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
                     >
                       <div className="flex justify-between text-sm">
                         <span className="text-foreground">{goal.name}</span>
@@ -401,7 +403,7 @@ export default function DashboardPage() {
                           )}
                         </div>
                       )}
-                    </button>
+                    </div>
                   )
                 })
               })()
