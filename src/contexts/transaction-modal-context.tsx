@@ -16,7 +16,7 @@ export interface TransactionModalActions {
 }
 
 export interface TransactionModalMutations {
-  createTransaction: (data: Omit<Transaction, "id" | "createdAt">) => Transaction
+  createTransaction: (data: Omit<Transaction, "id" | "createdAt">) => Promise<void>
 }
 
 const TransactionModalContext = React.createContext<TransactionModalState & TransactionModalActions & TransactionModalMutations | undefined>(undefined)
@@ -29,15 +29,23 @@ export function TransactionModalProvider({ children }: { children: React.ReactNo
   const closeModal = () => setIsOpen(false)
   const toggleModal = () => setIsOpen(prev => !prev)
 
-  const createTransaction = (data: Omit<Transaction, "id" | "createdAt">): Transaction => {
-    const transaction = addTransaction(data)
-    toast.success("Transação criada com sucesso")
-    return transaction
+  const createTransaction = async (data: Omit<Transaction, "id" | "createdAt">) => {
+    try {
+      await addTransaction(data)
+      toast.success("Transação criada com sucesso")
+    } catch (error) {
+      toast.error("Erro ao criar transação")
+      throw error
+    }
   }
 
-  const handleAdd = (data: Omit<Transaction, "id" | "createdAt">) => {
-    createTransaction(data)
-    closeModal()
+  const handleAdd = async (data: Omit<Transaction, "id" | "createdAt">) => {
+    try {
+      await createTransaction(data)
+      closeModal()
+    } catch {
+      // error already toasted in createTransaction
+    }
   }
 
   return (

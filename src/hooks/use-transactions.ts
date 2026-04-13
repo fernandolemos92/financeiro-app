@@ -6,8 +6,8 @@ import type { TransactionType } from "@/lib/transactions/types"
 import { storage, TransactionStorage } from "@/lib/transactions/storage"
 import { normalizer } from "@/lib/transactions/normalizer"
 import { expenseCategories, incomeCategories, getSubcategories as getSubs, getExpenseCategoriesList, getIncomeCategoriesList, allCategories } from "@/lib/transactions/normalizer"
-import { 
-  formatCurrency, 
+import {
+  formatCurrency,
   formatDate,
   calculateFinancialSummary,
   calculateIncomeBreakdown,
@@ -20,6 +20,7 @@ import {
   FREQUENCIES,
   PLANNING_STATUSES,
 } from "@/lib/transactions/helpers"
+import { apiFetchTransactions, apiCreateTransaction, apiUpdateTransaction, apiDeleteTransaction } from "@/lib/api/transactions"
 
 export type { TransactionType, IncomeType, ExpenseNature, Frequency, PlanningStatus }
 export type { Transaction, Category, SubCategory }
@@ -30,11 +31,12 @@ export { expenseCategories, incomeCategories, allCategories }
 
 let transactionsSingleton: Transaction[] = []
 let isLoadedSingleton = false
-let listenersSingleton: Set<(transactions: Transaction[]) => void> = new Set()
-let storageAdapter: TransactionStorage = storage
+const listenersSingleton: Set<(transactions: Transaction[]) => void> = new Set()
+let loadPromise: Promise<void> | null = null
+let errorSingleton: Error | null = null
 
-export function setStorageAdapter(adapter: TransactionStorage): void {
-  storageAdapter = adapter
+export function setStorageAdapter(_adapter: TransactionStorage): void {
+  // Deprecated: storage adapter is no longer used, API is now the source of truth
 }
 
 function notifyListeners(): void {
@@ -44,14 +46,36 @@ function notifyListeners(): void {
 function useTransactionsCore() {
   const [transactions, setTransactions] = React.useState<Transaction[]>(transactionsSingleton)
   const [isLoaded, setIsLoaded] = React.useState(isLoadedSingleton)
+  const [error, setError] = React.useState<Error | null>(null)
 
   React.useEffect(() => {
     if (!isLoadedSingleton) {
-      const stored = storageAdapter.loadAll()
-      transactionsSingleton = stored.map(record => normalizer.normalize(record))
-      isLoadedSingleton = true
-      setTransactions(transactionsSingleton)
-      setIsLoaded(true)
+      if (!loadPromise) {
+        loadPromise = (async () => {
+          try {
+            const data = await apiFetchTransactions()
+            transactionsSingleton = data.map(record => normalizer.normalize(record))
+            isLoadedSingleton = true
+            errorSingleton = null
+            notifyListeners()
+          } catch (err) {
+            errorSingleton = err instanceof Error ? err : new Error('Failed to load transactions')
+            notifyListeners()
+            throw err
+          }
+        })()
+      }
+      try {
+        loadPromise.then(() => {
+          setTransactions(transactionsSingleton)
+          setIsLoaded(true)
+          setError(null)
+        }).catch(() => {
+          setError(errorSingleton)
+        })
+      } catch {
+        setError(errorSingleton)
+      }
     }
 
     const listener = (newTransactions: Transaction[]) => {
@@ -64,76 +88,52 @@ function useTransactionsCore() {
     }
   }, [])
 
-  return { transactions, isLoaded }
+  return { transactions, isLoaded, error }
 }
 
 export function useTransactions() {
-  const { transactions, isLoaded } = useTransactionsCore()
+  const { transactions, isLoaded, error } = useTransactionsCore()
   const [, forceUpdate] = React.useState(0)
 
-  const addTransaction = React.useCallback((data: Omit<Transaction, "id" | "createdAt">) => {
-    const newTransaction: Transaction = {
-      ...data,
-      id: storageAdapter.createId(),
-      createdAt: storageAdapter.getCurrentTimestamp(),
-    }
-    
+  const addTransaction = React.useCallback(async (data: Omit<Transaction, "id" | "createdAt">) => {
+    const newTransaction = await apiCreateTransaction(data)
     transactionsSingleton = [newTransaction, ...transactionsSingleton]
-    storageAdapter.saveAll(transactionsSingleton)
     notifyListeners()
     forceUpdate(n => n + 1)
-    
-    return newTransaction
-  }, [])
-  
-  const addTransactionWithSubcategory = React.useCallback((data: Omit<Transaction, "id" | "createdAt" | "subcategory"> & { subcategory: string }) => {
-    const newTransaction: Transaction = {
-      ...data,
-      id: storageAdapter.createId(),
-      createdAt: storageAdapter.getCurrentTimestamp(),
-    }
-    
-    transactionsSingleton = [newTransaction, ...transactionsSingleton]
-    storageAdapter.saveAll(transactionsSingleton)
-    notifyListeners()
-    forceUpdate(n => n + 1)
-    
     return newTransaction
   }, [])
 
-  const updateTransactionClassification = React.useCallback((id: string, updates: {
+  const addTransactionWithSubcategory = React.useCallback(async (data: Omit<Transaction, "id" | "createdAt" | "subcategory"> & { subcategory: string }) => {
+    const newTransaction = await apiCreateTransaction(data as Omit<Transaction, "id" | "createdAt">)
+    transactionsSingleton = [newTransaction, ...transactionsSingleton]
+    notifyListeners()
+    forceUpdate(n => n + 1)
+    return newTransaction
+  }, [])
+
+  const updateTransactionClassification = React.useCallback(async (id: string, updates: {
     income_type?: IncomeType
     expense_nature?: ExpenseNature
     frequency?: Frequency
     planning_status?: PlanningStatus
     subcategory?: string
   }) => {
-    transactionsSingleton = transactionsSingleton.map((t) => {
-      if (t.id === id) {
-        return { ...t, ...updates }
-      }
-      return t
-    })
-    storageAdapter.saveAll(transactionsSingleton)
+    const updated = await apiUpdateTransaction(id, updates)
+    transactionsSingleton = transactionsSingleton.map(t => t.id === id ? updated : t)
     notifyListeners()
     forceUpdate(n => n + 1)
   }, [])
 
-  const updateTransaction = React.useCallback((id: string, updates: Partial<Transaction>) => {
-    transactionsSingleton = transactionsSingleton.map((t) => {
-      if (t.id === id) {
-        return { ...t, ...updates }
-      }
-      return t
-    })
-    storageAdapter.saveAll(transactionsSingleton)
+  const updateTransaction = React.useCallback(async (id: string, updates: Partial<Transaction>) => {
+    const updated = await apiUpdateTransaction(id, updates)
+    transactionsSingleton = transactionsSingleton.map(t => t.id === id ? updated : t)
     notifyListeners()
     forceUpdate(n => n + 1)
   }, [])
 
-  const deleteTransaction = React.useCallback((id: string) => {
-    transactionsSingleton = transactionsSingleton.filter((t) => t.id !== id)
-    storageAdapter.saveAll(transactionsSingleton)
+  const deleteTransaction = React.useCallback(async (id: string) => {
+    await apiDeleteTransaction(id)
+    transactionsSingleton = transactionsSingleton.filter(t => t.id !== id)
     notifyListeners()
     forceUpdate(n => n + 1)
   }, [])
@@ -141,6 +141,7 @@ export function useTransactions() {
   return {
     transactions,
     isLoaded,
+    error,
     addTransaction,
     addTransactionWithSubcategory,
     updateTransactionClassification,

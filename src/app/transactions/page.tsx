@@ -101,7 +101,7 @@ function TransactionDetailModal({
   onEdit: (transaction: Transaction) => void
   onDelete: (transaction: Transaction) => void
   onClose: () => void
-  onSave: (id: string, updates: Partial<Transaction>) => void
+  onSave: (id: string, updates: Partial<Transaction>) => Promise<void>
 }) {
   const [isEditing, setIsEditing] = React.useState(false)
   const [editValue, setEditValue] = React.useState("")
@@ -134,23 +134,26 @@ function TransactionDetailModal({
     return isExpense && editCategory ? getSubcategories(editCategory) : []
   }, [isExpense, editCategory])
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!transaction) return
     const rawValue = parseInputValue(editValue)
     const newAmount = parseFloat(rawValue.replace(",", "."))
     if (newAmount > 0) {
-      onSave(transaction.id, {
-        amount: newAmount,
-        description: editDescription || undefined,
-        date: editDate,
-        category: editCategory,
-        subcategory: editSubcategory || undefined,
-        expense_nature: isExpense ? editExpenseNature as any : undefined,
-        frequency: isExpense ? editFrequency as any : undefined,
-        income_type: !isExpense ? editIncomeType as any : undefined,
-      })
-      toast.success("Transação atualizada com sucesso")
-      onClose()
+      try {
+        await onSave(transaction.id, {
+          amount: newAmount,
+          description: editDescription || undefined,
+          date: editDate,
+          category: editCategory,
+          subcategory: editSubcategory || undefined,
+          expense_nature: isExpense ? editExpenseNature as any : undefined,
+          frequency: isExpense ? editFrequency as any : undefined,
+          income_type: !isExpense ? editIncomeType as any : undefined,
+        })
+        onClose()
+      } catch {
+        // error already toasted in handleDetailSave
+      }
     }
   }
 
@@ -435,10 +438,15 @@ export default function TransactionsPage() {
     setDeleteModal({ isOpen: true, transaction })
   }
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (deleteModal.transaction) {
-      deleteTransaction(deleteModal.transaction.id)
-      toast.success("Transação excluída com sucesso")
+      try {
+        await deleteTransaction(deleteModal.transaction.id)
+        toast.success("Transação excluída com sucesso")
+        setDetailModal({ isOpen: false, transaction: null })
+      } catch {
+        toast.error("Erro ao excluir transação")
+      }
     }
     setDeleteModal({ isOpen: false, transaction: null })
   }
@@ -469,8 +477,14 @@ export default function TransactionsPage() {
     setDetailModal({ isOpen: false, transaction: null })
   }
 
-  const handleDetailSave = (id: string, updates: Partial<Transaction>) => {
-    updateTransaction(id, updates)
+  const handleDetailSave = async (id: string, updates: Partial<Transaction>) => {
+    try {
+      await updateTransaction(id, updates)
+      toast.success("Transação atualizada com sucesso")
+      setDetailModal({ isOpen: false, transaction: null })
+    } catch {
+      toast.error("Erro ao atualizar transação")
+    }
   }
 
   const clearFilters = () => {

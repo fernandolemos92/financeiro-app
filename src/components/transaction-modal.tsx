@@ -3,7 +3,7 @@
 import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Modal } from "@/components/ui/modal"
+import { Modal, ModalLarge } from "@/components/ui/modal"
 import { TransactionType, IncomeType, ExpenseNature, Frequency, getExpenseCategories, getIncomeCategories, getSubcategories, INCOME_TYPES, EXPENSE_NATURES, FREQUENCIES } from "@/hooks/use-transactions"
 
 interface AddTransactionModalProps {
@@ -143,7 +143,7 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={() => handleOpenChange(false)}>
+    <ModalLarge isOpen={isOpen} onClose={() => handleOpenChange(false)}>
       <div>
         <h2 className="font-heading text-xl font-semibold text-foreground mb-4">
           Nova Transação
@@ -378,6 +378,6 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
           </form>
         )}
       </div>
-    </Modal>
+    </ModalLarge>
   )
 }

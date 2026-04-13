@@ -85,3 +85,44 @@ export function ModalLarge({ isOpen, onClose, children, className = "" }: ModalL
     </div>
   )
 }
+
+/**
+ * CANONICAL MODAL PATTERN FOR SCROLLABLE CONTENT
+ * ================================================
+ *
+ * Use ModalLarge when modal content can exceed viewport height.
+ * This pattern ensures all content remains accessible via scroll, with proper
+ * header/footer positioning and no overflow-related accessibility issues.
+ *
+ * STRUCTURE:
+ * <ModalLarge isOpen={isOpen} onClose={onClose}>
+ *   <div className="space-y-4">
+ *     [Header Title Element]
+ *     <h2 className="text-xl font-semibold">Modal Title</h2>
+ *
+ *     [Body Content Area - grows within scrollable container]
+ *     <form className="space-y-4">
+ *       [form fields and content]
+ *     </form>
+ *
+ *     [Footer Actions - scrollable with content, always reachable]
+ *     <Button className="w-full">Action</Button>
+ *   </div>
+ * </ModalLarge>
+ *
+ * KEY BEHAVIORS:
+ * - ModalLarge enforces max-h-[90vh] with internal vertical scrolling
+ * - All content (header, body, footer) scrolls together
+ * - Footer button is always accessible by scrolling
+ * - Modal never exceeds 90% of viewport height
+ * - Prevents layout shift on page scroll
+ *
+ * WHEN TO USE:
+ * - Complex forms with many fields (TransactionModal, InvestmentModal)
+ * - Dynamic content that grows conditionally
+ * - Any modal that may exceed 500px on mobile
+ *
+ * WHEN NOT NEEDED:
+ * - Simple, lightweight modals under 400px (use base Modal)
+ * - Modals with minimal form fields
+ */

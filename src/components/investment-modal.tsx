@@ -3,7 +3,7 @@
 import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Modal } from "@/components/ui/modal"
+import { Modal, ModalLarge } from "@/components/ui/modal"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { Investment, investmentTypes } from "@/hooks/use-investments"
 
@@ -123,7 +123,7 @@ export function InvestmentModal({
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose}>
+    <ModalLarge isOpen={isOpen} onClose={handleClose}>
       <div className="space-y-4">
         <h2 className="font-heading text-xl font-semibold text-foreground">
           {editingInvestment ? "Editar Investimento" : "Novo Investimento"}
@@ -226,6 +226,6 @@ export function InvestmentModal({
           </div>
         </form>
       </div>
-    </Modal>
+    </ModalLarge>
   )
 }
