@@ -217,42 +217,41 @@ function NatureCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="grid grid-cols-2 gap-2 text-sm">
+        <div className="flex justify-between text-sm">
           <div>
             <p className="text-xs text-muted-foreground">Planejado</p>
             <p className="font-amount text-foreground">{formatCurrency(item.planned)}</p>
           </div>
-          <div>
+          <div className="text-right">
             <p className="text-xs text-muted-foreground">Realizado</p>
             <p className="font-amount text-foreground">{formatCurrency(item.actual)}</p>
           </div>
         </div>
 
-        <div className="h-2 bg-muted rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full ${
-              status === "acima_do_planejado" ? "bg-red-400" : 
-              status === "sem_planejamento_com_gasto" ? "bg-yellow-400" :
-              "bg-green-400"
-            }`}
-            style={{ width: `${barWidth}%` }}
-          />
+        <div className="flex items-center gap-1">
+          <div className="h-2 flex-1 bg-muted rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full ${
+                status === "acima_do_planejado" ? "bg-red-400" : 
+                status === "sem_planejamento_com_gasto" ? "bg-yellow-400" :
+                "bg-green-400"
+              }`}
+              style={{ width: `${barWidth}%` }}
+            />
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {item.planned > 0 ? formatPercentage(percentage) : "-"}
+          </div>
         </div>
 
-        <div className="flex justify-between text-sm">
-          <span className={getNatureStatusColor(status)}>
+        <div className="flex justify-between text-xs pt-4">
+          <span className="text-muted-foreground">
             {getNatureStatusLabel(status)}
           </span>
-          <span className="font-amount text-muted-foreground">
-            {item.planned > 0 ? formatPercentage(percentage) : "-"}
+          <span className={difference > 0 ? "text-red-400" : difference < 0 ? "text-green-400" : "text-muted-foreground"}>
+            {item.planned > 0 ? `${difference >= 0 ? "+" : ""}${formatCurrency(difference)}` : ""}
           </span>
         </div>
-
-        {item.planned > 0 && (
-          <p className={`text-xs text-right ${difference >= 0 ? "text-red-400" : "text-green-400"}`}>
-            {difference >= 0 ? "+" : ""}{formatCurrency(difference)}
-          </p>
-        )}
       </CardContent>
     </Card>
   )
