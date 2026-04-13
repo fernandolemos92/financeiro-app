@@ -35,7 +35,7 @@ export default function DashboardPage() {
   const [isGoalModalOpen, setIsGoalModalOpen] = React.useState(false)
   const { transactions, isLoaded, addTransaction } = useTransactions()
   const { plannedAmounts, isLoaded: isPlannedLoaded } = usePlannedAmounts()
-  const { goals, isLoaded: isGoalsLoaded, updateGoalAmount, addGoal } = useGoals()
+  const { goals, updateGoalAmount, addGoal } = useGoals()
 
   const financialSummary: FinancialSummary = React.useMemo(() => {
     if (!isLoaded || transactions.length === 0) {
@@ -309,7 +309,7 @@ export default function DashboardPage() {
             <CardTitle className="text-lg">Metas ativas</CardTitle>
           </CardHeader>
           <CardContent className="space-y-1">
-            {isGoalsLoaded && goals.filter(g => !g.completedAt).length > 0 ? (
+            {goals.filter(g => !g.completedAt).length > 0 ? (
               (() => {
                 const activeGoals = goals.filter(g => !g.completedAt).slice(0, 5)
                 const isSingleGoal = activeGoals.length === 1
