@@ -72,28 +72,54 @@ export default function DashboardPage() {
     return calculatePlannedVsActual(plannedAmounts, expenseBreakdown)
   }, [plannedAmounts, expenseBreakdown, isPlannedLoaded])
 
-  const recentTransactionsByNature = React.useMemo(() => {
+  const getPeriodDates = (p: Period) => {
+    const now = new Date()
+    let start: Date
+    let end: Date
+    
+    if (p === "day") {
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
+    } else if (p === "week") {
+      const dayOfWeek = now.getDay()
+      const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1)
+      start = new Date(now.getFullYear(), now.getMonth(), diff)
+      end = new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000)
+    } else {
+      start = new Date(now.getFullYear(), now.getMonth(), 1)
+      end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    }
+    
+    return { start, end }
+  }
+
+  const transactionsByNature = React.useMemo(() => {
     if (!isLoaded || transactions.length === 0) return {}
     
-    const now = new Date()
-    const start = new Date(now.getFullYear(), now.getMonth(), 1)
-    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    const { start, end } = getPeriodDates(period)
     
-    const monthTransactions = transactions.filter((t) => {
+    const periodTransactions = transactions.filter((t) => {
       const date = new Date(t.date)
       return date >= start && date <= end && t.type === "expense" && t.planning_status !== "planned"
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
-    const result: Record<string, { id: string; category: string; description: string; date: string; amount: number }[]> = {}
+    const result: Record<string, { 
+      id: string
+      category: string
+      subcategory?: string
+      description: string
+      date: string
+      amount: number 
+    }[]> = {}
     
     const natures = ["debt", "cost_of_living", "pleasure", "application"]
     natures.forEach((nature) => {
-      result[nature] = monthTransactions
+      result[nature] = periodTransactions
         .filter((t) => t.expense_nature === nature)
-        .slice(0, 5)
         .map((t) => ({
           id: t.id,
           category: t.category,
+          subcategory: t.subcategory,
           description: t.description || t.category,
           date: t.date,
           amount: t.amount,
@@ -101,16 +127,14 @@ export default function DashboardPage() {
     })
     
     return result
-  }, [transactions, isLoaded])
+  }, [transactions, isLoaded, period])
 
   const natureDetails = React.useMemo(() => {
     if (!isLoaded || transactions.length === 0) return {}
     
-    const now = new Date()
-    const start = new Date(now.getFullYear(), now.getMonth(), 1)
-    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    const { start, end } = getPeriodDates(period)
     
-    const monthTransactions = transactions.filter((t) => {
+    const periodTransactions = transactions.filter((t) => {
       const date = new Date(t.date)
       return date >= start && date <= end && t.type === "expense" && t.planning_status !== "planned"
     })
@@ -125,7 +149,7 @@ export default function DashboardPage() {
     }
 
     Object.keys(natures).forEach((nature) => {
-      const natureTransactions = monthTransactions.filter((t) => t.expense_nature === nature)
+      const natureTransactions = periodTransactions.filter((t) => t.expense_nature === nature)
       const subcategories: Record<string, number> = {}
       
       natureTransactions.forEach((t) => {
@@ -135,7 +159,7 @@ export default function DashboardPage() {
 
       const sortedSubcats = Object.entries(subcategories)
         .sort((a, b) => b[1] - a[1])
-        .slice(0, 3)
+        .slice(0, 5)
 
       details[nature] = {
         subcategories: Object.fromEntries(sortedSubcats),
@@ -145,7 +169,7 @@ export default function DashboardPage() {
     })
 
     return details
-  }, [transactions, isLoaded])
+  }, [transactions, isLoaded, period])
 
   const getInsight = (item: PlannedVsActualItem) => {
     if (!item.planned || item.planned === 0) {
@@ -485,7 +509,7 @@ export default function DashboardPage() {
         const details = natureDetails[selectedNature]
         const totalOfExpenses = financialSummary.totalExpenses
         const percentOfTotal = totalOfExpenses > 0 ? (item.actual / totalOfExpenses) * 100 : 0
-        const recentTransactions = recentTransactionsByNature[selectedNature] || []
+        const natureTransactions = transactionsByNature[selectedNature] || []
         
         const configs: Record<string, { icon: string; textColor: string; accentColor: string; barColor: string }> = {
           debt: { icon: "💸", textColor: "text-red-400", accentColor: "bg-red-500/10 text-red-400", barColor: "bg-red-500" },
@@ -494,6 +518,8 @@ export default function DashboardPage() {
           application: { icon: "📈", textColor: "text-blue-400", accentColor: "bg-blue-500/10 text-blue-400", barColor: "bg-blue-500" },
         }
         const config = configs[item.nature] || configs.cost_of_living
+        
+        const periodLabel = period === "day" ? "dia" : period === "week" ? "semana" : "mês"
         
         return (
           <ModalLarge isOpen={true} onClose={() => setSelectedNature(null)}>
@@ -504,7 +530,7 @@ export default function DashboardPage() {
                 <span className="text-2xl">{config.icon}</span>
                 <div>
                   <h2 className="text-xl font-heading font-bold text-foreground">{item.natureLabel}</h2>
-                  <p className="text-sm text-muted-foreground">Resumo do mês</p>
+                  <p className="text-sm text-muted-foreground">Resumo do {periodLabel}</p>
                 </div>
               </div>
               
@@ -512,7 +538,7 @@ export default function DashboardPage() {
               {/* Topo - Valores principais */}
               <div className="grid grid-cols-2 gap-3">
                 <MetricCard 
-                  label="Total do mês" 
+                  label={`Total do ${periodLabel}`} 
                   value={formatCurrency(item.actual)} 
                   subValue={`${percentOfTotal.toFixed(1)}% do total gasto`}
                 />
@@ -573,28 +599,56 @@ export default function DashboardPage() {
                   </div>
                 )}
                 
-                {/* Base - Últimas transações */}
-                {recentTransactions.length > 0 && (
+                {/* Base - Transações do período */}
+                {natureTransactions.length > 0 && (
                   <div>
-                    <h3 className="text-sm font-medium text-foreground mb-3">Últimas transações</h3>
-                    <div className="space-y-2">
-                      {recentTransactions.slice(0, 4).map((t) => {
+                    <h3 className="text-sm font-medium text-foreground mb-3">
+                      O que compôs este valor ({natureTransactions.length} transações)
+                    </h3>
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      {natureTransactions.slice(0, 10).map((t) => {
                         const catInfo = categories.find(c => c.id === t.category)
                         const catName = catInfo?.name || t.category
+                        const subcatInfo = t.subcategory ? catInfo?.subcategories?.find(s => s.id === t.subcategory) : null
+                        const subcatName = subcatInfo?.name || t.subcategory
                         const dateObj = new Date(t.date)
                         const day = dateObj.getDate()
                         const month = dateObj.toLocaleDateString("pt-BR", { month: "short" })
                         return (
                           <div key={t.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm text-foreground truncate">{catName}</p>
-                              <p className="text-xs text-muted-foreground">{day} {month}</p>
+                              <p className="text-sm text-foreground truncate">{catInfo?.name || t.category}</p>
+                              {subcatName && (
+                                <p className="text-xs text-muted-foreground">
+                                  {subcatName.charAt(0).toUpperCase() + subcatName.slice(1)}
+                                </p>
+                              )}
+                              <p className="text-xs text-muted-foreground">
+                                {day} {month}
+                              </p>
                             </div>
                             <span className="text-sm font-medium text-foreground ml-3">{formatCurrency(t.amount)}</span>
                           </div>
                         )
                       })}
                     </div>
+                    {natureTransactions.length > 10 && (
+                      <p className="text-xs text-muted-foreground mt-2 text-center">
+                        + {natureTransactions.length - 10} transações não mostradas
+                      </p>
+                    )}
+                  </div>
+                )}
+                
+                {/* Empty state se não houver transações */}
+                {natureTransactions.length === 0 && item.actual > 0 && (
+                  <div className="text-center py-6">
+                    <p className="text-sm text-muted-foreground">
+                      Nenhuma transação encontrada no período.
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      O valor pode ser de período anterior.
+                    </p>
                   </div>
                 )}
                 
@@ -603,10 +657,10 @@ export default function DashboardPage() {
                   variant="outline"
                   onClick={() => {
                     setSelectedNature(null)
-                    router.push(`/planned-vs-actual?nature=${item.nature}`)
+                    router.push(`/transactions?nature=${item.nature}`)
                   }}
                 >
-                  Ver análise completa →
+                  Ver todas as transações →
                 </Button>
               </div>
             </div>
