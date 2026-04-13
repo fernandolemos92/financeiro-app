@@ -34,6 +34,7 @@ export function createTransactionNormalizer(config: NormalizerConfig = defaultNo
         type: record.type || "expense",
         amount: record.amount || 0,
         category: record.category || "outros",
+        subcategory: record.subcategory,
         description: record.description,
         date: record.date || new Date().toISOString().split("T")[0],
         createdAt: record.createdAt || new Date().toISOString(),
