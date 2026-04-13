@@ -167,7 +167,7 @@ function GoalDetailModal({
           </div>
         ) : (
           <>
-            <div className="text-center py-4">
+            <div className="py-4">
               <h4 className="font-heading text-xl font-bold text-foreground">{goal.name}</h4>
             </div>
 
@@ -265,12 +265,6 @@ function GoalDetailModal({
         <Button variant="destructive" className="flex-1" onClick={() => onDelete(goal.id)}>
           <TrashIcon className="h-4 w-4 mr-2" />
           Excluir
-        </Button>
-      </div>
-
-      <div className="p-4 border-t border-border">
-        <Button variant="outline" className="w-full" onClick={onClose}>
-          Fechar
         </Button>
       </div>
     </Modal>

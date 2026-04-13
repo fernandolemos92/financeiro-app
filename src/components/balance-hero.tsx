@@ -17,13 +17,13 @@ function getBalanceMessage(summary: FinancialSummary): string {
   if (summary.balanceState === "zero_allocation") {
     return "Todo o saldo alocado"
   }
-  return "Disponible"
+  return "Disponível"
 }
 
 function getBalanceColor(summary: FinancialSummary): string {
   if (summary.availableBalance < 0) return "text-secondary"
   if (summary.balanceState === "zero_allocation") return "text-yellow-400"
-  return "text-green-400"
+  return "text-foreground"
 }
 
 function getFinancialInterpretation(summary: FinancialSummary): { text: string; color: string } | null {

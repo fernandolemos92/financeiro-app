@@ -14,6 +14,7 @@ import {
   calculateExpenseBreakdown,
   calculatePlannedVsActual,
   checkAllOnTrack,
+  expenseCategories,
   ExpenseNature,
   PlannedVsActualItem,
   Transaction,
@@ -76,21 +77,43 @@ function NatureDetailModal({
   item,
   transactions,
   monthName,
+  monthKey,
 }: {
   isOpen: boolean
   onClose: () => void
   item: PlannedVsActualItem
   transactions: Transaction[]
   monthName: string
+  monthKey: string
 }) {
   const status = getNatureStatus(item.planned, item.actual)
   const difference = item.actual - item.planned
 
   const natureTransactions = React.useMemo(() => {
+    // Filter by nature AND by the selected month
     return transactions
-      .filter((t) => t.type === "expense" && t.expense_nature === item.nature)
+      .filter((t) => {
+        const transactionMonth = `${new Date(t.date).getFullYear()}-${String(new Date(t.date).getMonth() + 1).padStart(2, "0")}`
+        return transactionMonth === monthKey && t.type === "expense" && t.expense_nature === item.nature
+      })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-  }, [transactions, item.nature])
+  }, [transactions, item.nature, monthKey])
+
+  // Helper to get the best label for a transaction
+  const getTransactionLabel = (transaction: Transaction): string => {
+    // Priority 1: description if it's useful (not just the category name repeated)
+    if (transaction.description && transaction.description !== transaction.category) {
+      return transaction.description
+    }
+    // Priority 2: subcategory if it exists
+    if (transaction.subcategory) {
+      // Capitalize first letter
+      return transaction.subcategory.charAt(0).toUpperCase() + transaction.subcategory.slice(1)
+    }
+    // Priority 3: category name (from expenseCategories list)
+    const cat = expenseCategories.find(c => c.id === transaction.category)
+    return cat?.name || transaction.category
+  }
 
   if (!isOpen) return null
 
@@ -145,7 +168,7 @@ function NatureDetailModal({
               {natureTransactions.map((t) => (
                 <div key={t.id} className="flex justify-between items-center p-2 rounded bg-muted/50">
                   <div>
-                    <p className="text-sm text-foreground">{t.description || t.category}</p>
+                    <p className="text-sm text-foreground">{getTransactionLabel(t)}</p>
                     <p className="text-xs text-muted-foreground">{formatDate(t.date)}</p>
                   </div>
                   <p className="font-amount text-sm text-red-400">
@@ -237,16 +260,22 @@ function NatureCard({
 
 export default function PlannedVsActualPage() {
   const { transactions, isLoaded } = useTransactions()
-  const {
-    plannedAmounts,
-    isLoaded: isPlannedLoaded,
-    updatePlannedAmount,
-  } = usePlannedAmounts()
 
+  // Page controls its own selectedMonth state
   const [selectedMonth, setSelectedMonth] = React.useState(() => {
     const now = new Date()
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
   })
+
+  // Pass selectedMonth to hook so it syncs correctly
+  const {
+    plannedAmounts,
+    isLoaded: isPlannedLoaded,
+    isInitialized,
+    updatePlannedAmount,
+    currentMonthKey,
+    setMonth,
+  } = usePlannedAmounts(selectedMonth)
 
   const [selectedNature, setSelectedNature] = React.useState<PlannedVsActualItem | null>(null)
   const [inputValues, setInputValues] = React.useState<Record<ExpenseNature, string>>(() => {
@@ -263,6 +292,13 @@ export default function PlannedVsActualPage() {
     const [y, m] = selectedMonth.split("-")
     return [parseInt(y), parseInt(m)]
   }, [selectedMonth])
+
+  // Sync page's selectedMonth with hook when month changes
+  React.useEffect(() => {
+    if (isInitialized && selectedMonth !== currentMonthKey) {
+      setMonth(selectedMonth)
+    }
+  }, [selectedMonth, currentMonthKey, isInitialized, setMonth])
 
   const availableMonths = React.useMemo(() => {
     const months: { value: string; label: string }[] = []
@@ -300,9 +336,9 @@ export default function PlannedVsActualPage() {
   }, [transactions, isLoaded, selectedMonth])
 
   const plannedVsActualItems = React.useMemo(() => {
-    if (!isPlannedLoaded) return []
+    if (!isInitialized || !plannedAmounts) return []
     return calculatePlannedVsActual(plannedAmounts, expenseBreakdownByMonth)
-  }, [plannedAmounts, expenseBreakdownByMonth, isPlannedLoaded])
+  }, [plannedAmounts, expenseBreakdownByMonth, isInitialized])
 
   const totalPlanned = React.useMemo(() => {
     return plannedVsActualItems.reduce((sum, item) => sum + item.planned, 0)
@@ -329,7 +365,7 @@ export default function PlannedVsActualPage() {
   }
 
   React.useEffect(() => {
-    if (isPlannedLoaded) {
+    if (isInitialized && plannedAmounts) {
       const values: Record<ExpenseNature, string> = {
         debt: plannedAmounts.debt ? formatInputValue(plannedAmounts.debt.toString()) : "",
         cost_of_living: plannedAmounts.cost_of_living ? formatInputValue(plannedAmounts.cost_of_living.toString()) : "",
@@ -338,7 +374,7 @@ export default function PlannedVsActualPage() {
       }
       setInputValues(values)
     }
-  }, [isPlannedLoaded, plannedAmounts])
+  }, [isInitialized, plannedAmounts, selectedMonth])
 
   const handleInputChange = (nature: ExpenseNature, value: string) => {
     const formatted = formatInputValue(value)
@@ -353,7 +389,7 @@ export default function PlannedVsActualPage() {
     setInputValues((prev) => ({ ...prev, [nature]: formatInputValue(sanitized.toString()) }))
   }
 
-  if (!isLoaded || !isPlannedLoaded) {
+  if (!isLoaded || !isPlannedLoaded || !isInitialized) {
     return (
       <div className="flex items-center justify-center h-64">
         <p className="text-muted-foreground">Carregando...</p>
@@ -373,7 +409,9 @@ export default function PlannedVsActualPage() {
 
         <Select value={selectedMonth} onValueChange={(value) => setSelectedMonth(value || selectedMonth)}>
           <SelectTrigger className="w-40">
-            <SelectValue />
+            <SelectValue>
+              {availableMonths.find(m => m.value === selectedMonth)?.label || selectedMonth}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {availableMonths.map((m) => (
@@ -477,6 +515,7 @@ export default function PlannedVsActualPage() {
             return transactionMonth === selectedMonth
           })}
           monthName={monthName}
+          monthKey={selectedMonth}
         />
       )}
     </div>

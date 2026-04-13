@@ -8,6 +8,7 @@ export async function apiFetchTransactions(): Promise<Transaction[]> {
     headers: {
       'Content-Type': 'application/json',
     },
+    credentials: 'include',
   })
 
   if (!response.ok) {
@@ -25,6 +26,7 @@ export async function apiCreateTransaction(data: Omit<Transaction, 'id' | 'creat
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(data),
+    credentials: 'include',
   })
 
   if (!response.ok) {
@@ -42,6 +44,7 @@ export async function apiUpdateTransaction(id: string, data: Partial<Transaction
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(data),
+    credentials: 'include',
   })
 
   if (!response.ok) {
@@ -58,6 +61,7 @@ export async function apiDeleteTransaction(id: string): Promise<void> {
     headers: {
       'Content-Type': 'application/json',
     },
+    credentials: 'include',
   })
 
   if (!response.ok) {

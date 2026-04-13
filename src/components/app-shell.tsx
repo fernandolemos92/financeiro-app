@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { LogoutButton } from "@/components/logout-button"
 import { useTransactionModal } from "@/contexts/transaction-modal-context"
 
 const navigation = [
@@ -158,7 +159,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </Button>
         </div>
 
-        <nav className="flex flex-col gap-1 px-4 pb-4 flex-1 mt-8" role="navigation" aria-label="Navegação principal">
+        <nav className="flex flex-col gap-1 px-4 flex-1 mt-8" role="navigation" aria-label="Navegação principal">
           {navigation.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
             return (
@@ -179,6 +180,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             )
           })}
         </nav>
+
+        <div className="p-4 border-t border-sidebar-border">
+          <LogoutButton />
+        </div>
       </aside>
 
       {/* Mobile Overlay */}
@@ -224,11 +229,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        <div className="absolute bottom-4 left-4 right-4">
+        <div className="absolute bottom-4 left-4 right-4 space-y-2">
           <Button className="w-full gap-2 min-h-[44px]" size="lg" onClick={openModal}>
             <PlusIcon className="h-5 w-5" />
             Nova Transação
           </Button>
+          <LogoutButton />
         </div>
       </div>
 

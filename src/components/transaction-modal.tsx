@@ -38,6 +38,7 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
   const [description, setDescription] = React.useState("")
   const [date, setDate] = React.useState(new Date().toISOString().split("T")[0])
   const [showSuccess, setShowSuccess] = React.useState(false)
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [errors, setErrors] = React.useState<{ amount?: string; category?: string }>({})
   
   const [incomeType, setIncomeType] = React.useState<IncomeType>("fixed")
@@ -76,7 +77,7 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
     setErrors((prev) => ({ ...prev, category: "" }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
     const newErrors: { amount?: string; category?: string } = {}
@@ -92,34 +93,35 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
       return
     }
 
-    const transactionData = {
-      type,
-      amount: parseFloat(amount) / 100,
-      category,
-      description: description || undefined,
-      date,
-    }
+    setIsSubmitting(true)
 
-    if (type === "income") {
-      onAdd({
-        ...transactionData,
-        income_type: incomeType,
-      })
-    } else {
-      onAdd({
-        ...transactionData,
-        subcategory: subcategory || undefined,
-        expense_nature: expenseNature,
-        frequency,
-      })
-    }
+    try {
+      const transactionData = {
+        type,
+        amount: parseFloat(amount) / 100,
+        category,
+        description: description || undefined,
+        date,
+      }
 
-    setShowSuccess(true)
-    setTimeout(() => {
-      setShowSuccess(false)
-      resetForm()
-      onClose()
-    }, 1500)
+      const transactionPayload = type === "income"
+        ? { ...transactionData, income_type: incomeType }
+        : { ...transactionData, subcategory: subcategory || undefined, expense_nature: expenseNature, frequency }
+
+      await onAdd(transactionPayload)
+
+      setShowSuccess(true)
+      setTimeout(() => {
+        setShowSuccess(false)
+        resetForm()
+        onClose()
+      }, 1500)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Erro ao criar transação"
+      setErrors({ amount: errorMessage })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const resetForm = () => {
@@ -372,8 +374,8 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
             </div>
 
             {/* Submit Button */}
-            <Button type="submit" className="w-full" size="lg">
-              Adicionar Transação
+            <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
+              {isSubmitting ? "Criando..." : "Adicionar Transação"}
             </Button>
           </form>
         )}

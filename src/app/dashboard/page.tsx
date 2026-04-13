@@ -317,9 +317,9 @@ export default function DashboardPage() {
       {/* Income Breakdown - Chips */}
       <Chips
         items={[
-          { label: "R$ Fixa:", value: formatCurrency(incomeBreakdown.fixed), color: "green" },
-          { label: "R$ Variável:", value: formatCurrency(incomeBreakdown.variable), color: "green" },
-          { label: "R$ Oscilante:", value: formatCurrency(incomeBreakdown.oscillating), color: "green" },
+          { label: "R$ Fixa:", value: formatCurrency(incomeBreakdown.fixed), color: "neutral" },
+          { label: "R$ Variável:", value: formatCurrency(incomeBreakdown.variable), color: "neutral" },
+          { label: "R$ Oscilante:", value: formatCurrency(incomeBreakdown.oscillating), color: "neutral" },
         ]}
       />
 

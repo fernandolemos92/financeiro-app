@@ -43,6 +43,7 @@ export async function apiFetchGoals(): Promise<Goal[]> {
     headers: {
       "Content-Type": "application/json",
     },
+    credentials: "include",
   })
 
   if (!response.ok) {
@@ -60,6 +61,7 @@ export async function apiCreateGoal(data: CreateGoalPayload): Promise<Goal> {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(data),
+    credentials: "include",
   })
 
   if (!response.ok) {
@@ -77,6 +79,7 @@ export async function apiUpdateGoal(id: string, data: UpdateGoalPayload): Promis
       "Content-Type": "application/json",
     },
     body: JSON.stringify(data),
+    credentials: "include",
   })
 
   if (!response.ok) {
@@ -93,6 +96,7 @@ export async function apiDeleteGoal(id: string): Promise<void> {
     headers: {
       "Content-Type": "application/json",
     },
+    credentials: "include",
   })
 
   if (!response.ok) {
@@ -107,6 +111,7 @@ export async function apiAddContribution(id: string, amount: number): Promise<Go
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ amount }),
+    credentials: "include",
   })
 
   if (!response.ok) {
@@ -123,6 +128,7 @@ export async function apiCloseGoal(id: string): Promise<Goal> {
     headers: {
       "Content-Type": "application/json",
     },
+    credentials: "include",
   })
 
   if (!response.ok) {

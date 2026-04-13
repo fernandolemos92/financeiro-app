@@ -36,74 +36,160 @@ const DEFAULT_PLANNED_AMOUNTS: PlannedAmounts = {
 
 // Module-level cache and pending fetches (shared across all instances)
 const monthCacheSingleton: Map<MonthKey, PlannedAmounts> = new Map()
-const pendingFetches: Map<MonthKey, Promise<void>> = new Map()
+const pendingFetches: Map<MonthKey, Promise<PlannedAmounts>> = new Map()
+const monthExistsCache: Set<MonthKey> = new Set()
 
-export function usePlannedAmounts() {
+export function usePlannedAmounts(initialMonth?: MonthKey) {
   const [currentDate, setCurrentDate] = React.useState(() => {
+    if (initialMonth) {
+      const { year, month } = parseMonthKey(initialMonth)
+      return { year, month }
+    }
     const now = new Date()
     return { year: now.getFullYear(), month: now.getMonth() + 1 }
   })
 
   const [plannedAmounts, setPlannedAmounts] = React.useState<PlannedAmounts>(DEFAULT_PLANNED_AMOUNTS)
   const [isLoaded, setIsLoaded] = React.useState(false)
+  const [isInitialized, setIsInitialized] = React.useState(false)
 
   const currentMonthKey = getMonthKey(currentDate.year, currentDate.month)
 
-  React.useEffect(() => {
-    // Check if we have this month cached
-    if (monthCacheSingleton.has(currentMonthKey)) {
-      const cached = monthCacheSingleton.get(currentMonthKey)!
-      setPlannedAmounts({ ...cached })
-      setIsLoaded(true)
-      return
+  // Get previous month key for bootstrap
+  const getPreviousMonthKey = (monthKey: MonthKey): MonthKey | null => {
+    const { year, month } = parseMonthKey(monthKey)
+    if (month === 1) {
+      return `${year - 1}-12`
+    }
+    return `${year}-${String(month - 1).padStart(2, "0")}`
+  }
+
+  // Fetch planned amounts for a specific month
+  const fetchMonthData = async (monthKey: MonthKey, useBootstrap: boolean = false): Promise<PlannedAmounts> => {
+    // If in cache, return it
+    if (monthCacheSingleton.has(monthKey)) {
+      return monthCacheSingleton.get(monthKey)!
     }
 
-    // If fetch is already pending, wait for it
-    if (pendingFetches.has(currentMonthKey)) {
-      pendingFetches.get(currentMonthKey)!.then(() => {
-        const cached = monthCacheSingleton.get(currentMonthKey)
-        if (cached) {
-          setPlannedAmounts({ ...cached })
-        }
-        setIsLoaded(true)
-      })
-      return
+    // Check if fetch is pending
+    if (pendingFetches.has(monthKey)) {
+      await pendingFetches.get(monthKey)!
+      return monthCacheSingleton.get(monthKey) || DEFAULT_PLANNED_AMOUNTS
     }
 
     // Fetch from API
-    const fetchPromise = apiFetchPlannedAmounts(currentMonthKey)
-      .then((data) => {
-        // Convert response to PlannedAmounts (omit month field)
+    const fetchPromise = (async () => {
+      try {
+        const data = await apiFetchPlannedAmounts(monthKey)
+        
+        // Check if month has real data (non-zero values)
+        const hasData = data.debt > 0 || data.cost_of_living > 0 || data.pleasure > 0 || data.application > 0
+        
+        if (hasData) {
+          monthExistsCache.add(monthKey)
+        }
+
         const amounts: PlannedAmounts = {
           debt: data.debt,
           cost_of_living: data.cost_of_living,
           pleasure: data.pleasure,
           application: data.application,
         }
-        monthCacheSingleton.set(currentMonthKey, amounts)
-        setPlannedAmounts({ ...amounts })
-        setIsLoaded(true)
-      })
-      .catch((err) => {
-        console.error(`Failed to fetch planned amounts for ${currentMonthKey}:`, err)
-        // On error, set to defaults and mark as loaded
-        monthCacheSingleton.set(currentMonthKey, DEFAULT_PLANNED_AMOUNTS)
-        setPlannedAmounts({ ...DEFAULT_PLANNED_AMOUNTS })
-        setIsLoaded(true)
-      })
-      .finally(() => {
-        pendingFetches.delete(currentMonthKey)
-      })
+        monthCacheSingleton.set(monthKey, amounts)
+        return amounts
+      } catch (err) {
+        console.error(`Failed to fetch planned amounts for ${monthKey}:`, err)
+        monthCacheSingleton.set(monthKey, DEFAULT_PLANNED_AMOUNTS)
+        return DEFAULT_PLANNED_AMOUNTS
+      }
+    })()
 
-    pendingFetches.set(currentMonthKey, fetchPromise)
+    pendingFetches.set(monthKey, fetchPromise)
+    const result = await fetchPromise
+    pendingFetches.delete(monthKey)
+    
+    return result
+  }
+
+  // Bootstrap: load from previous month if current month has no data
+  const bootstrapIfNeeded = async (monthKey: MonthKey): Promise<PlannedAmounts> => {
+    // First, try to fetch current month data
+    let currentData = await fetchMonthData(monthKey)
+    
+    // Check if month has data
+    const hasCurrentData = currentData.debt > 0 || currentData.cost_of_living > 0 || 
+                        currentData.pleasure > 0 || currentData.application > 0
+    
+    if (hasCurrentData) {
+      return currentData
+    }
+
+    // No data for current month - try to bootstrap from previous month
+    const previousMonthKey = getPreviousMonthKey(monthKey)
+    if (!previousMonthKey) {
+      return DEFAULT_PLANNED_AMOUNTS
+    }
+
+    const previousData = await fetchMonthData(previousMonthKey)
+    
+    // Check if previous month has data
+    const hasPreviousData = previousData.debt > 0 || previousData.cost_of_living > 0 || 
+                           previousData.pleasure > 0 || previousData.application > 0
+    
+    if (!hasPreviousData) {
+      return DEFAULT_PLANNED_AMOUNTS
+    }
+
+    // Copy values from previous month (this is the bootstrap)
+    const bootstrapData = { ...previousData }
+    monthCacheSingleton.set(monthKey, bootstrapData)
+    
+    return bootstrapData
+  }
+
+  // Main effect: load data for current month
+  React.useEffect(() => {
+    let mounted = true
+
+    const loadData = async () => {
+      setIsLoaded(false)
+      
+      const data = await bootstrapIfNeeded(currentMonthKey)
+      
+      if (mounted) {
+        setPlannedAmounts(data)
+        setIsLoaded(true)
+        setIsInitialized(true)
+      }
+    }
+
+    loadData()
+
+    return () => {
+      mounted = false
+    }
   }, [currentMonthKey])
+
+  // Sync with external initialMonth if provided
+  React.useEffect(() => {
+    if (initialMonth) {
+      const { year, month } = parseMonthKey(initialMonth)
+      setCurrentDate({ year, month })
+    }
+  }, [initialMonth])
+
+  const setMonth = React.useCallback((newMonthKey: MonthKey) => {
+    const { year, month } = parseMonthKey(newMonthKey)
+    setCurrentDate({ year, month })
+    setIsLoaded(false)
+  }, [])
 
   const updatePlannedAmount = React.useCallback(
     async (nature: ExpenseNature, amount: number) => {
       const sanitized = Math.max(0, amount)
 
       try {
-        // Build full payload from current cached amounts
+        // Get current values as base
         const current = monthCacheSingleton.get(currentMonthKey) || DEFAULT_PLANNED_AMOUNTS
         const payload: PlannedAmountsPayload = {
           debt: current.debt,
@@ -115,6 +201,9 @@ export function usePlannedAmounts() {
 
         // Call API with full payload
         const result = await apiUpsertPlannedAmounts(currentMonthKey, payload)
+
+        // Mark month as existing
+        monthExistsCache.add(currentMonthKey)
 
         // Update cache with new values
         const updated: PlannedAmounts = {
@@ -137,48 +226,23 @@ export function usePlannedAmounts() {
     try {
       const result = await apiUpsertPlannedAmounts(currentMonthKey, DEFAULT_PLANNED_AMOUNTS)
 
-      const updated: PlannedAmounts = {
-        debt: result.debt,
-        cost_of_living: result.cost_of_living,
-        pleasure: result.pleasure,
-        application: result.application,
-      }
-      monthCacheSingleton.set(currentMonthKey, updated)
-      setPlannedAmounts({ ...updated })
+      monthCacheSingleton.set(currentMonthKey, DEFAULT_PLANNED_AMOUNTS)
+      setPlannedAmounts({ ...DEFAULT_PLANNED_AMOUNTS })
     } catch (err) {
       console.error("Failed to reset planned amounts:", err)
       throw err
     }
   }, [currentMonthKey])
 
-  const goToPreviousMonth = React.useCallback(() => {
-    setCurrentDate((prev) => {
-      if (prev.month === 1) {
-        return { year: prev.year - 1, month: 12 }
-      }
-      return { ...prev, month: prev.month - 1 }
-    })
-    setIsLoaded(false)
-  }, [])
-
-  const goToNextMonth = React.useCallback(() => {
-    setCurrentDate((prev) => {
-      if (prev.month === 12) {
-        return { year: prev.year + 1, month: 1 }
-      }
-      return { ...prev, month: prev.month + 1 }
-    })
-    setIsLoaded(false)
-  }, [])
-
   return {
     plannedAmounts,
     isLoaded,
+    isInitialized,
     currentDate,
+    currentMonthKey,
+    setMonth,
     updatePlannedAmount,
     resetPlannedAmounts,
-    goToPreviousMonth,
-    goToNextMonth,
   }
 }
 
