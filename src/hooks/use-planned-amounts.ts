@@ -1,7 +1,13 @@
 "use client"
 
 import * as React from "react"
-import { ExpenseNature } from "./use-transactions"
+import {
+  apiFetchPlannedAmounts,
+  apiUpsertPlannedAmounts,
+  type PlannedAmountsResponse,
+  type PlannedAmountsPayload,
+} from "@/lib/api/planned-amounts"
+import type { ExpenseNature } from "./use-transactions"
 
 export interface PlannedAmounts {
   debt: number
@@ -21,8 +27,6 @@ function parseMonthKey(key: MonthKey): { year: number; month: number } {
   return { year, month }
 }
 
-const PLANNED_STORAGE_KEY = "financeiro-app-planned-amounts-monthly"
-
 const DEFAULT_PLANNED_AMOUNTS: PlannedAmounts = {
   debt: 0,
   cost_of_living: 0,
@@ -30,43 +34,122 @@ const DEFAULT_PLANNED_AMOUNTS: PlannedAmounts = {
   application: 0,
 }
 
-function getStoredPlannedAmounts(): Record<MonthKey, PlannedAmounts> {
-  if (typeof window === "undefined") return {}
-  
-  const stored = localStorage.getItem(PLANNED_STORAGE_KEY)
-  if (!stored) return {}
-  
-  try {
-    return JSON.parse(stored)
-  } catch {
-    return {}
-  }
-}
-
-function savePlannedAmountsMonthly(amounts: Record<MonthKey, PlannedAmounts>): void {
-  if (typeof window === "undefined") return
-  localStorage.setItem(PLANNED_STORAGE_KEY, JSON.stringify(amounts))
-}
+// Module-level cache and pending fetches (shared across all instances)
+const monthCacheSingleton: Map<MonthKey, PlannedAmounts> = new Map()
+const pendingFetches: Map<MonthKey, Promise<void>> = new Map()
 
 export function usePlannedAmounts() {
   const [currentDate, setCurrentDate] = React.useState(() => {
     const now = new Date()
     return { year: now.getFullYear(), month: now.getMonth() + 1 }
   })
-  
-  const [monthlyPlannedAmounts, setMonthlyPlannedAmounts] = React.useState<Record<MonthKey, PlannedAmounts>>({})
-  const [isLoaded, setIsLoaded] = React.useState(false)
 
-  React.useEffect(() => {
-    setMonthlyPlannedAmounts(getStoredPlannedAmounts())
-    setIsLoaded(true)
-  }, [])
+  const [plannedAmounts, setPlannedAmounts] = React.useState<PlannedAmounts>(DEFAULT_PLANNED_AMOUNTS)
+  const [isLoaded, setIsLoaded] = React.useState(false)
 
   const currentMonthKey = getMonthKey(currentDate.year, currentDate.month)
 
-  const plannedAmounts = React.useMemo(() => {
-    return monthlyPlannedAmounts[currentMonthKey] || DEFAULT_PLANNED_AMOUNTS
-  }, [monthlyPlannedAmounts, currentMonthKey])
+  React.useEffect(() => {
+    // Check if we have this month cached
+    if (monthCacheSingleton.has(currentMonthKey)) {
+      const cached = monthCacheSingleton.get(currentMonthKey)!
+      setPlannedAmounts({ ...cached })
+      setIsLoaded(true)
+      return
+    }
+
+    // If fetch is already pending, wait for it
+    if (pendingFetches.has(currentMonthKey)) {
+      pendingFetches.get(currentMonthKey)!.then(() => {
+        const cached = monthCacheSingleton.get(currentMonthKey)
+        if (cached) {
+          setPlannedAmounts({ ...cached })
+        }
+        setIsLoaded(true)
+      })
+      return
+    }
+
+    // Fetch from API
+    const fetchPromise = apiFetchPlannedAmounts(currentMonthKey)
+      .then((data) => {
+        // Convert response to PlannedAmounts (omit month field)
+        const amounts: PlannedAmounts = {
+          debt: data.debt,
+          cost_of_living: data.cost_of_living,
+          pleasure: data.pleasure,
+          application: data.application,
+        }
+        monthCacheSingleton.set(currentMonthKey, amounts)
+        setPlannedAmounts({ ...amounts })
+        setIsLoaded(true)
+      })
+      .catch((err) => {
+        console.error(`Failed to fetch planned amounts for ${currentMonthKey}:`, err)
+        // On error, set to defaults and mark as loaded
+        monthCacheSingleton.set(currentMonthKey, DEFAULT_PLANNED_AMOUNTS)
+        setPlannedAmounts({ ...DEFAULT_PLANNED_AMOUNTS })
+        setIsLoaded(true)
+      })
+      .finally(() => {
+        pendingFetches.delete(currentMonthKey)
+      })
+
+    pendingFetches.set(currentMonthKey, fetchPromise)
+  }, [currentMonthKey])
+
+  const updatePlannedAmount = React.useCallback(
+    async (nature: ExpenseNature, amount: number) => {
+      const sanitized = Math.max(0, amount)
+
+      try {
+        // Build full payload from current cached amounts
+        const current = monthCacheSingleton.get(currentMonthKey) || DEFAULT_PLANNED_AMOUNTS
+        const payload: PlannedAmountsPayload = {
+          debt: current.debt,
+          cost_of_living: current.cost_of_living,
+          pleasure: current.pleasure,
+          application: current.application,
+          [nature]: sanitized,
+        }
+
+        // Call API with full payload
+        const result = await apiUpsertPlannedAmounts(currentMonthKey, payload)
+
+        // Update cache with new values
+        const updated: PlannedAmounts = {
+          debt: result.debt,
+          cost_of_living: result.cost_of_living,
+          pleasure: result.pleasure,
+          application: result.application,
+        }
+        monthCacheSingleton.set(currentMonthKey, updated)
+        setPlannedAmounts({ ...updated })
+      } catch (err) {
+        console.error("Failed to update planned amount:", err)
+        throw err
+      }
+    },
+    [currentMonthKey]
+  )
+
+  const resetPlannedAmounts = React.useCallback(async () => {
+    try {
+      const result = await apiUpsertPlannedAmounts(currentMonthKey, DEFAULT_PLANNED_AMOUNTS)
+
+      const updated: PlannedAmounts = {
+        debt: result.debt,
+        cost_of_living: result.cost_of_living,
+        pleasure: result.pleasure,
+        application: result.application,
+      }
+      monthCacheSingleton.set(currentMonthKey, updated)
+      setPlannedAmounts({ ...updated })
+    } catch (err) {
+      console.error("Failed to reset planned amounts:", err)
+      throw err
+    }
+  }, [currentMonthKey])
 
   const goToPreviousMonth = React.useCallback(() => {
     setCurrentDate((prev) => {
@@ -75,6 +158,7 @@ export function usePlannedAmounts() {
       }
       return { ...prev, month: prev.month - 1 }
     })
+    setIsLoaded(false)
   }, [])
 
   const goToNextMonth = React.useCallback(() => {
@@ -84,34 +168,8 @@ export function usePlannedAmounts() {
       }
       return { ...prev, month: prev.month + 1 }
     })
+    setIsLoaded(false)
   }, [])
-
-  const updatePlannedAmount = React.useCallback((nature: ExpenseNature, amount: number) => {
-    const sanitizedAmount = Math.max(0, amount)
-    
-    setMonthlyPlannedAmounts((prev) => {
-      const updated = {
-        ...prev,
-        [currentMonthKey]: {
-          ...(prev[currentMonthKey] || DEFAULT_PLANNED_AMOUNTS),
-          [nature]: sanitizedAmount,
-        },
-      }
-      savePlannedAmountsMonthly(updated)
-      return updated
-    })
-  }, [currentMonthKey])
-
-  const resetPlannedAmounts = React.useCallback(() => {
-    setMonthlyPlannedAmounts((prev) => {
-      const updated = {
-        ...prev,
-        [currentMonthKey]: DEFAULT_PLANNED_AMOUNTS,
-      }
-      savePlannedAmountsMonthly(updated)
-      return updated
-    })
-  }, [currentMonthKey])
 
   return {
     plannedAmounts,
@@ -123,6 +181,8 @@ export function usePlannedAmounts() {
     goToNextMonth,
   }
 }
+
+// Pure utility functions (unchanged from original)
 
 export type DeviationState = "on_track" | "deviation_warning" | "overspent"
 
@@ -138,7 +198,7 @@ export interface PlannedVsActualItem {
 function calculateDeviationState(planned: number, actual: number): DeviationState {
   if (planned === 0) return "on_track"
   if (actual <= planned) return "on_track"
-  if (actual <= planned * 1.10) return "deviation_warning"
+  if (actual <= planned * 1.1) return "deviation_warning"
   return "overspent"
 }
 

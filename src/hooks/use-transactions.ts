@@ -3,7 +3,6 @@
 import * as React from "react"
 import { Transaction, IncomeType, ExpenseNature, Frequency, PlanningStatus, Category, SubCategory, BalanceState, FinancialSummary, IncomeBreakdown, ExpenseBreakdown, MonthlyProvisioning } from "@/lib/transactions"
 import type { TransactionType } from "@/lib/transactions/types"
-import { storage, TransactionStorage } from "@/lib/transactions/storage"
 import { normalizer } from "@/lib/transactions/normalizer"
 import { expenseCategories, incomeCategories, getSubcategories as getSubs, getExpenseCategoriesList, getIncomeCategoriesList, allCategories } from "@/lib/transactions/normalizer"
 import {
@@ -34,10 +33,6 @@ let isLoadedSingleton = false
 const listenersSingleton: Set<(transactions: Transaction[]) => void> = new Set()
 let loadPromise: Promise<void> | null = null
 let errorSingleton: Error | null = null
-
-export function setStorageAdapter(_adapter: TransactionStorage): void {
-  // Deprecated: storage adapter is no longer used, API is now the source of truth
-}
 
 function notifyListeners(): void {
   listenersSingleton.forEach(listener => listener(transactionsSingleton))

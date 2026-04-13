@@ -1,6 +1,20 @@
 "use client"
 
 import * as React from "react"
+import {
+  apiFetchGoals,
+  apiCreateGoal,
+  apiUpdateGoal,
+  apiDeleteGoal,
+  apiAddContribution,
+  apiCloseGoal,
+  type Goal,
+  type GoalStatus,
+  type CreateGoalPayload,
+  type UpdateGoalPayload,
+} from "@/lib/api/goals"
+
+export type { Goal, GoalStatus }
 
 export interface GoalContribution {
   id: string
@@ -8,176 +22,144 @@ export interface GoalContribution {
   date: string
 }
 
-export type GoalStatus = "active" | "completed" | "manually_closed"
+// Module-level singleton (shared across all component instances)
+let goalsSingleton: Goal[] = []
+let isLoadedSingleton = false
+let errorSingleton: Error | null = null
+let loadPromise: Promise<void> | null = null
+const listenersSingleton: Set<(goals: Goal[]) => void> = new Set()
 
-export interface Goal {
-  id: string
-  name: string
-  targetAmount: number
-  currentAmount: number
-  deadline: string
-  status: GoalStatus
-  createdAt: string
-  completedAt?: string
-  contributions: GoalContribution[]
-}
-
-const STORAGE_KEY = "financeiro-app-goals"
-
-function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substring(2, 15)}-${Math.random().toString(36).substring(2, 15)}`
-}
-
-function getStoredGoals(): Goal[] {
-  if (typeof window === "undefined") return []
-  const stored = localStorage.getItem(STORAGE_KEY)
-  if (stored) {
-    try {
-      const parsed = JSON.parse(stored)
-      return parsed.map((g: any) => {
-        const migratedGoal: Goal = {
-          ...g,
-          id: g.id || generateId(),
-          contributions: (g.contributions || []).map((c: any, idx: number) => ({
-            ...c,
-            id: c.id || `contrib-${idx}-${generateId()}`,
-          })),
-        }
-        if (g.isCompleted && !migratedGoal.completedAt) {
-          migratedGoal.status = "completed"
-          migratedGoal.completedAt = g.completedAt || new Date().toISOString()
-        }
-        return migratedGoal
-      })
-    } catch {
-      return []
-    }
-  }
-  return []
-}
-
-function saveGoals(goals: Goal[]): void {
-  if (typeof window === "undefined") return
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(goals))
+function notifyListeners(): void {
+  listenersSingleton.forEach((listener) => listener(goalsSingleton))
 }
 
 export function useGoals() {
-  const [goals, setGoals] = React.useState<Goal[]>(() => {
-    if (typeof window === "undefined") return []
-    return getStoredGoals()
-  })
-  const [isLoaded, setIsLoaded] = React.useState(true)
+  // Initialize from singleton
+  const [goals, setGoals] = React.useState<Goal[]>(goalsSingleton)
+  const [isLoaded, setIsLoaded] = React.useState(isLoadedSingleton)
+  const [, forceUpdate] = React.useState(0)
 
-  const addGoal = React.useCallback((data: {
-    name: string
-    targetAmount: number
-    deadline: string
-  }) => {
-    const newGoal: Goal = {
-      id: generateId(),
-      name: data.name,
-      targetAmount: data.targetAmount,
-      currentAmount: 0,
-      deadline: data.deadline,
-      status: "active",
-      createdAt: new Date().toISOString(),
-      contributions: [],
+  React.useEffect(() => {
+    // Register listener for singleton updates
+    const listener = (newGoals: Goal[]) => {
+      setGoals([...newGoals])
+    }
+    listenersSingleton.add(listener)
+
+    // Load goals if not yet loaded
+    if (!isLoadedSingleton) {
+      if (!loadPromise) {
+        loadPromise = apiFetchGoals()
+          .then((data) => {
+            goalsSingleton = data
+            isLoadedSingleton = true
+            errorSingleton = null
+            notifyListeners()
+          })
+          .catch((err) => {
+            errorSingleton = err
+            console.error("Failed to load goals:", err)
+          })
+      }
+
+      loadPromise.then(() => {
+        setGoals([...goalsSingleton])
+        setIsLoaded(true)
+      })
+    } else {
+      // Already loaded, sync state
+      setGoals([...goalsSingleton])
+      setIsLoaded(true)
     }
 
-    setGoals((prev) => {
-      const updated = [newGoal, ...prev]
-      saveGoals(updated)
-      return updated
-    })
-
-    return newGoal
+    return () => {
+      listenersSingleton.delete(listener)
+    }
   }, [])
 
-  const addContribution = React.useCallback((id: string, amount: number) => {
-    if (amount <= 0) return false
+  const addGoal = React.useCallback(
+    async (data: CreateGoalPayload) => {
+      try {
+        const newGoal = await apiCreateGoal(data)
+        goalsSingleton = [newGoal, ...goalsSingleton]
+        notifyListeners()
+        forceUpdate((n) => n + 1)
+        return newGoal
+      } catch (err) {
+        console.error("Failed to create goal:", err)
+        throw err
+      }
+    },
+    []
+  )
 
-    setGoals((prev) => {
-      const updated = prev.map((goal) => {
-        if (goal.id !== id) return goal
+  const addContribution = React.useCallback(
+    async (id: string, amount: number) => {
+      if (amount <= 0) return false
 
-        const newCurrentAmount = goal.currentAmount + amount
-        const isNowCompleted = newCurrentAmount >= goal.targetAmount
+      try {
+        const updated = await apiAddContribution(id, amount)
+        goalsSingleton = goalsSingleton.map((g) => (g.id === id ? updated : g))
+        notifyListeners()
+        forceUpdate((n) => n + 1)
+        return true
+      } catch (err) {
+        console.error("Failed to add contribution:", err)
+        throw err
+      }
+    },
+    []
+  )
 
-        const contribution: GoalContribution = {
-          id: generateId(),
-          amount,
-          date: new Date().toISOString(),
-        }
-
-        return {
-          ...goal,
-          currentAmount: newCurrentAmount,
-          status: isNowCompleted ? "completed" : goal.status,
-          completedAt: isNowCompleted ? new Date().toISOString() : goal.completedAt,
-          contributions: [contribution, ...goal.contributions],
-        }
-      })
-      saveGoals(updated)
-      return updated
-    })
-    return true
+  const closeGoalManually = React.useCallback(async (id: string) => {
+    try {
+      const updated = await apiCloseGoal(id)
+      goalsSingleton = goalsSingleton.map((g) => (g.id === id ? updated : g))
+      notifyListeners()
+      forceUpdate((n) => n + 1)
+    } catch (err) {
+      console.error("Failed to close goal:", err)
+      throw err
+    }
   }, [])
 
-  const closeGoalManually = React.useCallback((id: string) => {
-    setGoals((prev) => {
-      const updated = prev.map((goal) => {
-        if (goal.id !== id) return goal
-        if (goal.status !== "active") return goal
-
-        return {
-          ...goal,
-          status: "manually_closed" as GoalStatus,
-          completedAt: new Date().toISOString(),
-        }
-      })
-      saveGoals(updated)
-      return updated
-    })
+  const updateGoal = React.useCallback(async (id: string, data: UpdateGoalPayload) => {
+    try {
+      const updated = await apiUpdateGoal(id, data)
+      goalsSingleton = goalsSingleton.map((g) => (g.id === id ? updated : g))
+      notifyListeners()
+      forceUpdate((n) => n + 1)
+    } catch (err) {
+      console.error("Failed to update goal:", err)
+      throw err
+    }
   }, [])
 
-  const updateGoal = React.useCallback((id: string, data: { name?: string; targetAmount?: number; deadline?: string }) => {
-    setGoals((prev) => {
-      const updated = prev.map((goal) => {
-        if (goal.id !== id) return goal
+  const updateGoalAmount = React.useCallback(
+    (id: string, amount: number) => {
+      return addContribution(id, amount)
+    },
+    [addContribution]
+  )
 
-        const newTargetAmount = data.targetAmount ?? goal.targetAmount
-        const newCurrentAmount = goal.currentAmount
-        const isNowCompleted = newCurrentAmount >= newTargetAmount
-
-        return {
-          ...goal,
-          name: data.name ?? goal.name,
-          targetAmount: newTargetAmount,
-          deadline: data.deadline ?? goal.deadline,
-          status: isNowCompleted ? "completed" : goal.status,
-          completedAt: isNowCompleted ? new Date().toISOString() : goal.completedAt,
-        }
-      })
-      saveGoals(updated)
-      return updated
-    })
+  const deleteGoal = React.useCallback(async (id: string) => {
+    try {
+      await apiDeleteGoal(id)
+      goalsSingleton = goalsSingleton.filter((g) => g.id !== id)
+      notifyListeners()
+      forceUpdate((n) => n + 1)
+    } catch (err) {
+      console.error("Failed to delete goal:", err)
+      throw err
+    }
   }, [])
 
-  const updateGoalAmount = React.useCallback((id: string, amount: number) => {
-    return addContribution(id, amount)
-  }, [addContribution])
-
-  const deleteGoal = React.useCallback((id: string) => {
-    setGoals((prev) => {
-      const updated = prev.filter((g) => g.id !== id)
-      saveGoals(updated)
-      return updated
-    })
-  }, [])
-
-  const getGoalById = React.useCallback((id: string): Goal | undefined => {
-    return goals.find((g) => g.id === id)
-  }, [goals])
+  const getGoalById = React.useCallback(
+    (id: string): Goal | undefined => {
+      return goals.find((g) => g.id === id)
+    },
+    [goals]
+  )
 
   return {
     goals,
@@ -191,6 +173,8 @@ export function useGoals() {
     getGoalById,
   }
 }
+
+// Utility functions (unchanged from original)
 
 export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("pt-BR", {
