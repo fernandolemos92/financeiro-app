@@ -251,8 +251,10 @@ function TransactionDetailModal({
             <p className="text-xs text-muted-foreground">Categoria</p>
             {isEditing ? (
               <Select value={editCategory} onValueChange={(value) => { setEditCategory(value || editCategory); setEditSubcategory(""); }}>
-                <SelectTrigger className="w-full capitalize">
-                  <SelectValue />
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {(isExpense ? expenseCategories : incomeCategories).find(c => c.id === editCategory)?.name || editCategory}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {(isExpense ? expenseCategories : incomeCategories).map((cat) => (
@@ -269,8 +271,10 @@ function TransactionDetailModal({
               <p className="text-xs text-muted-foreground">Subcategoria</p>
               {isEditing ? (
                 <Select value={editSubcategory} onValueChange={(value) => setEditSubcategory(value || editSubcategory)}>
-                  <SelectTrigger className="w-full capitalize">
-                    <SelectValue placeholder="Selecione..." />
+                  <SelectTrigger className="w-full">
+                    <SelectValue>
+                      {subcategories.find(s => s.id === editSubcategory)?.name || editSubcategory || "Selecione..."}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {subcategories.map((sub) => (
@@ -289,8 +293,10 @@ function TransactionDetailModal({
                 <p className="text-xs text-muted-foreground">Natureza</p>
                 {isEditing ? (
                   <Select value={editExpenseNature} onValueChange={(value) => setEditExpenseNature((value || editExpenseNature) as any)}>
-                    <SelectTrigger className="w-full capitalize">
-                      <SelectValue />
+                    <SelectTrigger className="w-full">
+                      <SelectValue>
+                        {EXPENSE_NATURES.find(t => t.value === editExpenseNature)?.label || editExpenseNature}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {EXPENSE_NATURES.map((en) => (
@@ -308,8 +314,10 @@ function TransactionDetailModal({
                 <p className="text-xs text-muted-foreground">Frequência</p>
                 {isEditing ? (
                   <Select value={editFrequency} onValueChange={(value) => setEditFrequency((value || editFrequency) as any)}>
-                    <SelectTrigger className="w-full capitalize">
-                      <SelectValue />
+                    <SelectTrigger className="w-full">
+                      <SelectValue>
+                        {FREQUENCIES.find(t => t.value === editFrequency)?.label || editFrequency}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {FREQUENCIES.map((f) => (
@@ -330,8 +338,10 @@ function TransactionDetailModal({
               <p className="text-xs text-muted-foreground">Tipo de Renda</p>
               {isEditing ? (
                 <Select value={editIncomeType} onValueChange={(value) => setEditIncomeType((value || editIncomeType) as any)}>
-                  <SelectTrigger className="w-full capitalize">
-                    <SelectValue />
+                  <SelectTrigger className="w-full">
+                    <SelectValue>
+                      {INCOME_TYPES.find(t => t.value === editIncomeType)?.label || editIncomeType}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {INCOME_TYPES.map((it) => (
@@ -527,9 +537,13 @@ export default function TransactionsPage() {
 
         <div className="flex flex-wrap gap-4">
           {/* Category Filter */}
-          <Select value={selectedCategory} onValueChange={(value) => setSelectedCategory(value || selectedCategory)}>
-            <SelectTrigger className="w-44">
-              <SelectValue />
+          <Select value={selectedCategory} onValueChange={(value) => setSelectedCategory(value || "all")}>
+            <SelectTrigger className="w-48">
+              <SelectValue>
+                {selectedCategory === "all" 
+                  ? "Todas as categorias" 
+                  : getAllCategories().find(c => c.id === selectedCategory)?.name || selectedCategory}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas as categorias</SelectItem>
