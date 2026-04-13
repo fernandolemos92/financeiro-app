@@ -3,7 +3,7 @@
 import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { CloseButton } from "@/components/ui/close-button"
+import { Modal } from "@/components/ui/modal"
 import { formatInputValue, parseInputValue } from "@/hooks/use-goals"
 
 interface GoalModalProps {
@@ -57,29 +57,14 @@ export function GoalModal({ isOpen, onClose, onAdd }: GoalModalProps) {
     onClose()
   }
 
-  if (!isOpen) return null
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="goal-modal-title"
-    >
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
+    <Modal isOpen={isOpen} onClose={onClose}>
+      <div>
+        <h2 className="font-heading text-xl font-semibold text-foreground mb-4">
+          Nova Meta
+        </h2>
 
-      <div className="relative w-full max-w-md mx-4 bg-card rounded-xl border border-border shadow-xl">
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <h2 id="goal-modal-title" className="font-heading text-xl font-semibold text-foreground">
-            Nova Meta
-          </h2>
-          <CloseButton onClick={onClose} />
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <label htmlFor="goal-name" className="text-sm font-medium text-foreground">
               Nome da meta
@@ -148,6 +133,6 @@ export function GoalModal({ isOpen, onClose, onAdd }: GoalModalProps) {
           </Button>
         </form>
       </div>
-    </div>
+    </Modal>
   )
 }

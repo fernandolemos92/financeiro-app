@@ -322,8 +322,8 @@ export default function DashboardPage() {
                       role="button"
                       tabIndex={0}
                       onClick={() => setSelectedGoal(goal.id)}
-                      onKeyDown={(e) => e.key === "Enter" && setSelectedGoal(goal.id)}
-                      className="w-full text-left space-y-2 p-2 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
+                      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setSelectedGoal(goal.id)}
+                      className="w-full text-left space-y-2 p-2 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg"
                     >
                       <div className="flex justify-between text-sm">
                         <span className="text-foreground">{goal.name}</span>

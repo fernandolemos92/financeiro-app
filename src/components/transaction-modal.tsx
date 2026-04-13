@@ -3,7 +3,7 @@
 import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { CloseButton } from "@/components/ui/close-button"
+import { Modal } from "@/components/ui/modal"
 import { TransactionType, IncomeType, ExpenseNature, Frequency, getExpenseCategories, getIncomeCategories, getSubcategories, INCOME_TYPES, EXPENSE_NATURES, FREQUENCIES } from "@/hooks/use-transactions"
 
 interface AddTransactionModalProps {
@@ -142,27 +142,12 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
     }
   }
 
-  if (!isOpen) return null
-
   return (
-    <div 
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="modal-title"
-    >
-      <div 
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={() => handleOpenChange(false)}
-      />
-      
-      <div className="relative w-full max-w-md mx-4 bg-card rounded-xl border border-border shadow-xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-4 border-b border-border sticky top-0 bg-card z-10">
-          <h2 id="modal-title" className="font-heading text-xl font-semibold text-foreground">
-            Nova Transação
-          </h2>
-          <CloseButton onClick={() => handleOpenChange(false)} />
-        </div>
+    <Modal isOpen={isOpen} onClose={() => handleOpenChange(false)}>
+      <div>
+        <h2 className="font-heading text-xl font-semibold text-foreground mb-4">
+          Nova Transação
+        </h2>
 
         {showSuccess ? (
           <div className="flex flex-col items-center justify-center py-12 space-y-4">
@@ -393,6 +378,6 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
           </form>
         )}
       </div>
-    </div>
+    </Modal>
   )
 }

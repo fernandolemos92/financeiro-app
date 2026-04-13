@@ -8,6 +8,8 @@ import { useTransactions } from "@/hooks/use-transactions"
 import { Chips } from "@/components/chips"
 import { InsightsHealthCard } from "@/components/insights-health"
 import { InsightsRecommendations } from "@/components/insights-recommendations"
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
+import { formatCurrency, formatDate, formatMonthYear, getMonthName } from "@/lib/formatting"
 
 type HealthStatus = "bom" | "atencao" | "otimo"
 
@@ -67,32 +69,6 @@ function getHealthInfo(status: HealthStatus) {
   }
 }
 
-function getMonthName(month: number): string {
-  const months = [
-    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
-  ]
-  return months[month]
-}
-
-function getMonthYear(month: number, year: number): string {
-  return `${getMonthName(month)} ${year}`
-}
-
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(value)
-}
-
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr)
-  return new Intl.DateTimeFormat("pt-BR", {
-    day: "numeric",
-    month: "short",
-  }).format(date)
-}
 
 const categoryLabels: Record<string, string> = {
   alimentacao: "Alimentação",
@@ -338,7 +314,7 @@ export default function InsightsPage() {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
       months.push({
         value: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
-        label: getMonthYear(d.getMonth(), d.getFullYear()),
+        label: formatMonthYear(d.getMonth(), d.getFullYear()),
       })
     }
     return months
@@ -389,17 +365,18 @@ export default function InsightsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-heading text-3xl font-bold text-foreground">Insights</h1>
-          <p className="mt-1 text-muted-foreground">Análise financeira de {getMonthYear(month - 1, year)}</p>
+          <p className="mt-1 text-muted-foreground">Análise financeira de {formatMonthYear(month - 1, year)}</p>
         </div>
-        <select
-          value={selectedMonth}
-          onChange={(e) => setSelectedMonth(e.target.value)}
-          className="bg-card border border-border rounded-lg px-3 py-2 text-foreground text-sm"
-        >
-          {availableMonths.map((m) => (
-            <option key={m.value} value={m.value}>{m.label}</option>
-          ))}
-        </select>
+        <Select value={selectedMonth} onValueChange={(value) => setSelectedMonth(value || selectedMonth)}>
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {availableMonths.map((m) => (
+              <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {hasData && hasPreviousMonth && (
@@ -455,7 +432,7 @@ export default function InsightsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              {getMonthName(month - 1)} {year}
+              {getMonthName(month)} {year}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -553,13 +530,13 @@ export default function InsightsPage() {
               const percentage = Math.round((amount as number) / totalExpenses * 100)
               const label = categoryLabels[category] || category
               return (
-                <div 
+                <div
                   key={category}
                   role="button"
                   tabIndex={0}
                   onClick={() => openCategoryDetail(category, label)}
-                  onKeyDown={(e) => e.key === "Enter" && openCategoryDetail(category, label)}
-                  className="space-y-2 cursor-pointer hover:bg-muted/30 p-2 -m-2 rounded-lg transition-colors"
+                  onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && openCategoryDetail(category, label)}
+                  className="space-y-2 cursor-pointer hover:bg-muted/30 p-2 -m-2 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <div className="flex justify-between text-sm">
                     <span className="text-foreground">{label}</span>
@@ -595,7 +572,7 @@ export default function InsightsPage() {
                 Saúde {healthInfo.label}
               </h2>
               <p className="text-sm text-muted-foreground">
-                Análise de {getMonthYear(month - 1, year)}
+                Análise de {formatMonthYear(month - 1, year)}
               </p>
             </div>
           </div>
@@ -688,7 +665,7 @@ export default function InsightsPage() {
               <div className="pt-4 border-t border-border">
                 <h3 className="text-sm font-medium mb-2">Comparação</h3>
                 <p className="text-muted-foreground text-xs">
-                  Insight baseado em {getMonthYear(month - 1, year)}
+                  Insight baseado em {formatMonthYear(month - 1, year)}
                   {hasPreviousMonth ? " com comparação do mês anterior" : " sem mês anterior"}
                 </p>
               </div>

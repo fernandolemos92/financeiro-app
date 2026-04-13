@@ -3,26 +3,16 @@
 import * as React from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Modal } from "@/components/ui/modal"
 import { useInvestments, investmentTypeLabels } from "@/hooks/use-investments"
 import { InvestmentModal } from "@/components/investment-modal"
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(amount)
-}
-
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr)
-  return new Intl.DateTimeFormat("pt-BR").format(date)
-}
+import { formatCurrency, formatDate } from "@/lib/formatting"
 
 export default function InvestmentsPage() {
-  const { 
-    investments, 
-    isLoaded, 
-    addInvestment, 
+  const {
+    investments,
+    isLoaded,
+    addInvestment,
     updateInvestment,
     deleteInvestment,
     totalInvested,
@@ -31,9 +21,10 @@ export default function InvestmentsPage() {
     totalGainLoss,
     gainLossPercentage
   } = useInvestments()
-  
+
   const [isModalOpen, setIsModalOpen] = React.useState(false)
   const [editingInvestment, setEditingInvestment] = React.useState<any>(null)
+  const [investmentToDelete, setInvestmentToDelete] = React.useState<string | null>(null)
 
   const handleAdd = (data: Parameters<typeof addInvestment>[0]) => {
     addInvestment(data)
@@ -50,8 +41,13 @@ export default function InvestmentsPage() {
   }
 
   const handleDelete = (id: string) => {
-    if (confirm("Tem certeza que deseja excluir este investimento?")) {
-      deleteInvestment(id)
+    setInvestmentToDelete(id)
+  }
+
+  const handleDeleteConfirm = () => {
+    if (investmentToDelete) {
+      deleteInvestment(investmentToDelete)
+      setInvestmentToDelete(null)
     }
   }
 
@@ -232,6 +228,22 @@ export default function InvestmentsPage() {
         editingInvestment={editingInvestment}
         onUpdate={handleUpdate}
       />
+
+      {/* Delete Confirmation Modal */}
+      <Modal isOpen={!!investmentToDelete} onClose={() => setInvestmentToDelete(null)}>
+        <div className="space-y-4">
+          <h3 className="font-semibold text-lg text-foreground">Excluir investimento?</h3>
+          <p className="text-sm text-muted-foreground">Esta ação não pode ser desfeita.</p>
+          <div className="flex gap-3 justify-end pt-4">
+            <Button variant="outline" onClick={() => setInvestmentToDelete(null)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteConfirm}>
+              Excluir
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

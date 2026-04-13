@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Modal } from "@/components/ui/modal"
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
 import { useTransactions, expenseCategories, incomeCategories, getSubcategories, formatCurrency, formatDate, Transaction, getTransactionTitle, getTransactionSubtitle, INCOME_TYPES, EXPENSE_NATURES, FREQUENCIES } from "@/hooks/use-transactions"
 
@@ -246,15 +247,16 @@ function TransactionDetailModal({
           <div>
             <p className="text-xs text-muted-foreground">Categoria</p>
             {isEditing ? (
-              <select
-                value={editCategory}
-                onChange={(e) => { setEditCategory(e.target.value); setEditSubcategory(""); }}
-                className="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-foreground text-sm capitalize"
-              >
-                {(isExpense ? expenseCategories : incomeCategories).map((cat) => (
-                  <option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>
-                ))}
-              </select>
+              <Select value={editCategory} onValueChange={(value) => { setEditCategory(value || editCategory); setEditSubcategory(""); }}>
+                <SelectTrigger className="w-full capitalize">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(isExpense ? expenseCategories : incomeCategories).map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id}>{cat.icon} {cat.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             ) : (
               <p className="text-foreground">{category.name}</p>
             )}
@@ -263,16 +265,16 @@ function TransactionDetailModal({
             <div>
               <p className="text-xs text-muted-foreground">Subcategoria</p>
               {isEditing ? (
-                <select
-                  value={editSubcategory}
-                  onChange={(e) => setEditSubcategory(e.target.value)}
-                  className="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-foreground text-sm capitalize"
-                >
-                  <option value="">Selecione...</option>
-                  {subcategories.map((sub) => (
-                    <option key={sub.id} value={sub.id}>{sub.name}</option>
-                  ))}
-                </select>
+                <Select value={editSubcategory} onValueChange={(value) => setEditSubcategory(value || editSubcategory)}>
+                  <SelectTrigger className="w-full capitalize">
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {subcategories.map((sub) => (
+                      <SelectItem key={sub.id} value={sub.id}>{sub.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               ) : (
                 <p className="text-foreground">{transaction.subcategory ? getSubcategories(transaction.category).find(s => s.id === transaction.subcategory)?.name : "-"}</p>
               )}
@@ -283,15 +285,16 @@ function TransactionDetailModal({
               <div>
                 <p className="text-xs text-muted-foreground">Natureza</p>
                 {isEditing ? (
-                  <select
-                    value={editExpenseNature}
-                    onChange={(e) => setEditExpenseNature(e.target.value as any)}
-                    className="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-foreground text-sm capitalize"
-                  >
-                    {EXPENSE_NATURES.map((en) => (
-                      <option key={en.value} value={en.value}>{en.label}</option>
-                    ))}
-                  </select>
+                  <Select value={editExpenseNature} onValueChange={(value) => setEditExpenseNature((value || editExpenseNature) as any)}>
+                    <SelectTrigger className="w-full capitalize">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {EXPENSE_NATURES.map((en) => (
+                        <SelectItem key={en.value} value={en.value}>{en.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 ) : (
                   <p className="text-foreground">
                     {EXPENSE_NATURES.find(t => t.value === transaction.expense_nature)?.label || transaction.expense_nature}
@@ -301,15 +304,16 @@ function TransactionDetailModal({
               <div>
                 <p className="text-xs text-muted-foreground">Frequência</p>
                 {isEditing ? (
-                  <select
-                    value={editFrequency}
-                    onChange={(e) => setEditFrequency(e.target.value as any)}
-                    className="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-foreground text-sm capitalize"
-                  >
-                    {FREQUENCIES.map((f) => (
-                      <option key={f.value} value={f.value}>{f.label}</option>
-                    ))}
-                  </select>
+                  <Select value={editFrequency} onValueChange={(value) => setEditFrequency((value || editFrequency) as any)}>
+                    <SelectTrigger className="w-full capitalize">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FREQUENCIES.map((f) => (
+                        <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 ) : (
                   <p className="text-foreground">
                     {FREQUENCIES.find(t => t.value === transaction.frequency)?.label || transaction.frequency}
@@ -322,15 +326,16 @@ function TransactionDetailModal({
             <div>
               <p className="text-xs text-muted-foreground">Tipo de Renda</p>
               {isEditing ? (
-                <select
-                  value={editIncomeType}
-                  onChange={(e) => setEditIncomeType(e.target.value as any)}
-                  className="w-full bg-card border border-border rounded-lg px-2 py-1.5 text-foreground text-sm capitalize"
-                >
-                  {INCOME_TYPES.map((it) => (
-                    <option key={it.value} value={it.value}>{it.label}</option>
-                  ))}
-                </select>
+                <Select value={editIncomeType} onValueChange={(value) => setEditIncomeType((value || editIncomeType) as any)}>
+                  <SelectTrigger className="w-full capitalize">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {INCOME_TYPES.map((it) => (
+                      <SelectItem key={it.value} value={it.value}>{it.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               ) : (
                 <p className="text-foreground">
                   {INCOME_TYPES.find(t => t.value === transaction.income_type)?.label || transaction.income_type}
@@ -508,19 +513,19 @@ export default function TransactionsPage() {
 
         <div className="flex flex-wrap gap-4">
           {/* Category Filter */}
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            className="px-3 py-2 rounded-lg bg-card border border-border text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label="Filtrar por categoria"
-          >
-            <option value="all">Todas as categorias</option>
-            {getAllCategories().map((cat) => (
-              <option key={cat.id} value={cat.id}>
-                {cat.icon} {cat.name}
-              </option>
-            ))}
-          </select>
+          <Select value={selectedCategory} onValueChange={(value) => setSelectedCategory(value || selectedCategory)}>
+            <SelectTrigger className="w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as categorias</SelectItem>
+              {getAllCategories().map((cat) => (
+                <SelectItem key={cat.id} value={cat.id}>
+                  {cat.icon} {cat.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           {/* Date Range */}
           <div className="flex items-center gap-2">

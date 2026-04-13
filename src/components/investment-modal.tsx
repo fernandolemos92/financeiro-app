@@ -3,7 +3,8 @@
 import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { CloseButton } from "@/components/ui/close-button"
+import { Modal } from "@/components/ui/modal"
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { Investment, investmentTypes } from "@/hooks/use-investments"
 
 interface InvestmentModalProps {
@@ -121,18 +122,12 @@ export function InvestmentModal({
     onClose()
   }
 
-  if (!isOpen) return null
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={handleClose} />
-      <div className="relative bg-popover border border-border rounded-lg w-full max-w-md p-6 shadow-lg">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="font-heading text-xl font-semibold text-foreground">
-            {editingInvestment ? "Editar Investimento" : "Novo Investimento"}
-          </h2>
-          <CloseButton onClick={handleClose} />
-        </div>
+    <Modal isOpen={isOpen} onClose={handleClose}>
+      <div className="space-y-4">
+        <h2 className="font-heading text-xl font-semibold text-foreground">
+          {editingInvestment ? "Editar Investimento" : "Novo Investimento"}
+        </h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
@@ -155,16 +150,16 @@ export function InvestmentModal({
             <label htmlFor="investment-type" className="text-sm font-medium text-foreground">
               Tipo
             </label>
-            <select
-              id="investment-type"
-              value={type}
-              onChange={(e) => setType(e.target.value as Investment["type"])}
-              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-foreground"
-            >
-              {investmentTypes.map((t) => (
-                <option key={t.value} value={t.value}>{t.label}</option>
-              ))}
-            </select>
+            <Select value={type} onValueChange={(value) => setType((value || type) as Investment["type"])}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {investmentTypes.map((t) => (
+                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">
@@ -231,6 +226,6 @@ export function InvestmentModal({
           </div>
         </form>
       </div>
-    </div>
+    </Modal>
   )
 }

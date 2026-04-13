@@ -1,28 +1,16 @@
-import { 
-  Transaction, 
-  FinancialSummary, 
-  IncomeBreakdown, 
+import {
+  Transaction,
+  FinancialSummary,
+  IncomeBreakdown,
   ExpenseBreakdown,
   MonthlyProvisioning,
-  ExpenseNature 
+  ExpenseNature
 } from "./types"
 import { getCategoryById, getSubcategoryById } from "./normalizer"
+import { formatCurrency, formatDate } from "@/lib/formatting"
 
-export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(amount)
-}
-
-export function formatDate(dateString: string): string {
-  const date = new Date(dateString)
-  return new Intl.DateTimeFormat("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(date)
-}
+// Re-export formatters for backward compatibility
+export { formatCurrency, formatDate }
 
 export function calculateFinancialSummary(
   transactions: Transaction[], 

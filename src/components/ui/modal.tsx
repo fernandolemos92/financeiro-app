@@ -16,13 +16,26 @@ export function Modal({ isOpen, onClose, children, className = "" }: ModalProps)
     setIsMounted(true)
   }, [])
 
+  React.useEffect(() => {
+    if (!isMounted || !isOpen) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose()
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown)
+    return () => document.removeEventListener("keydown", handleKeyDown)
+  }, [isOpen, isMounted, onClose])
+
   if (!isMounted || !isOpen) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div 
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm" 
-        onClick={onClose} 
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        onClick={onClose}
       />
       <div className={`relative w-full max-w-md bg-card border border-border rounded-2xl p-6 shadow-2xl ${className}`}>
         {children}
@@ -45,13 +58,26 @@ export function ModalLarge({ isOpen, onClose, children, className = "" }: ModalL
     setIsMounted(true)
   }, [])
 
+  React.useEffect(() => {
+    if (!isMounted || !isOpen) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose()
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown)
+    return () => document.removeEventListener("keydown", handleKeyDown)
+  }, [isOpen, isMounted, onClose])
+
   if (!isMounted || !isOpen) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div 
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm" 
-        onClick={onClose} 
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        onClick={onClose}
       />
       <div className={`relative w-full max-w-lg max-h-[90vh] overflow-y-auto bg-card border border-border rounded-2xl p-6 shadow-2xl ${className}`}>
         {children}

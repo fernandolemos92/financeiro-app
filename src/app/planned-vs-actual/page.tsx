@@ -6,20 +6,20 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Modal } from "@/components/ui/modal"
 import { Button } from "@/components/ui/button"
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
-import { 
-  useTransactions, 
-  usePlannedAmounts, 
-  calculateExpenseBreakdown, 
-  calculatePlannedVsActual, 
-  checkAllOnTrack, 
-  formatCurrency, 
-  formatDate,
-  ExpenseNature, 
+import {
+  useTransactions,
+  usePlannedAmounts,
+  calculateExpenseBreakdown,
+  calculatePlannedVsActual,
+  checkAllOnTrack,
+  ExpenseNature,
   PlannedVsActualItem,
   Transaction,
 } from "@/hooks/use-transactions"
 import { formatInputValue, parseInputValue } from "@/hooks/use-goals"
+import { formatCurrency, formatDate, getMonthName, formatMonthYear } from "@/lib/formatting"
 
 const NATURE_OPTIONS: { value: ExpenseNature; label: string; icon: string; color: string }[] = [
   { value: "debt", label: "Dívidas", icon: "💸", color: "text-red-400" },
@@ -28,29 +28,6 @@ const NATURE_OPTIONS: { value: ExpenseNature; label: string; icon: string; color
   { value: "application", label: "Alocações", icon: "📈", color: "text-blue-400" },
 ]
 
-function ChevronLeftIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="m15 18-6-6 6-6" />
-    </svg>
-  )
-}
-
-function ChevronRightIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="m9 18 6-6-6-6" />
-    </svg>
-  )
-}
-
-function getMonthName(month: number): string {
-  const months = [
-    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
-  ]
-  return months[month - 1]
-}
 
 type NatureStatus = 
   | "sem_planejamento_e_sem_realizado"
@@ -118,15 +95,18 @@ function NatureDetailModal({
   if (!isOpen) return null
 
   return (
-    <Modal isOpen={true} onClose={onClose} className="max-w-lg">
-      <div className="p-4 border-b border-border">
-        <h3 className="font-heading text-lg font-semibold text-foreground">
-          {item.natureLabel} - {monthName}
-        </h3>
-        <p className={`text-sm ${getNatureStatusColor(status)}`}>
-          {getNatureStatusLabel(status)}
-        </p>
-      </div>
+    <Modal isOpen={isOpen} onClose={onClose} className="max-w-lg">
+      <div>
+        <div className="p-4 border-b border-border flex items-center justify-between">
+          <div>
+            <h3 className="font-heading text-lg font-semibold text-foreground">
+              {item.natureLabel} - {monthName}
+            </h3>
+            <p className={`text-sm ${getNatureStatusColor(status)}`}>
+              {getNatureStatusLabel(status)}
+            </p>
+          </div>
+        </div>
 
       <div className="p-4 space-y-4">
         <div className="grid grid-cols-2 gap-4">
@@ -178,14 +158,6 @@ function NatureDetailModal({
         </div>
       </div>
 
-      <div className="p-4 border-t border-border">
-        <Button 
-          className="w-full text-muted-foreground" 
-          style={{ backgroundColor: 'color-mix(in oklab, var(--input) 30%, transparent)' }}
-          onClick={onClose}
-        >
-          Fechar
-        </Button>
       </div>
     </Modal>
   )
@@ -206,9 +178,12 @@ function NatureCard({
   const natureOption = NATURE_OPTIONS.find((n) => n.value === item.nature)
 
   return (
-    <Card 
-      className="cursor-pointer hover:bg-muted/30 transition-colors"
+    <Card
+      role="button"
+      tabIndex={0}
+      className="cursor-pointer hover:bg-muted/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       onClick={onClick}
+      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onClick()}
     >
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
@@ -260,47 +235,18 @@ function NatureCard({
   )
 }
 
-function MonthNavigator({ 
-  currentDate, 
-  onPrevious, 
-  onNext 
-}: { 
-  currentDate: { year: number; month: number }
-  onPrevious: () => void
-  onNext: () => void
-}) {
-  const monthName = getMonthName(currentDate.month)
-  
-  return (
-    <div className="flex items-center justify-start gap-4">
-      <Button variant="ghost" size="icon" onClick={onPrevious}>
-        <ChevronLeftIcon className="h-5 w-5" />
-      </Button>
-      <div className="text-center min-w-[140px]">
-        <p className="font-heading text-lg font-semibold text-foreground">
-          {monthName}
-        </p>
-        <p className="text-sm text-muted-foreground">
-          {currentDate.year}
-        </p>
-      </div>
-      <Button variant="ghost" size="icon" onClick={onNext}>
-        <ChevronRightIcon className="h-5 w-5" />
-      </Button>
-    </div>
-  )
-}
-
 export default function PlannedVsActualPage() {
   const { transactions, isLoaded } = useTransactions()
-  const { 
-    plannedAmounts, 
-    isLoaded: isPlannedLoaded, 
-    currentDate,
+  const {
+    plannedAmounts,
+    isLoaded: isPlannedLoaded,
     updatePlannedAmount,
-    goToPreviousMonth,
-    goToNextMonth,
   } = usePlannedAmounts()
+
+  const [selectedMonth, setSelectedMonth] = React.useState(() => {
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
+  })
 
   const [selectedNature, setSelectedNature] = React.useState<PlannedVsActualItem | null>(null)
   const [inputValues, setInputValues] = React.useState<Record<ExpenseNature, string>>(() => {
@@ -313,19 +259,35 @@ export default function PlannedVsActualPage() {
     return initial
   })
 
+  const [year, month] = React.useMemo(() => {
+    const [y, m] = selectedMonth.split("-")
+    return [parseInt(y), parseInt(m)]
+  }, [selectedMonth])
+
+  const availableMonths = React.useMemo(() => {
+    const months: { value: string; label: string }[] = []
+    const now = new Date()
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      months.push({
+        value: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+        label: formatMonthYear(d.getMonth(), d.getFullYear()),
+      })
+    }
+    return months
+  }, [])
+
   const expenseBreakdownByMonth = React.useMemo(() => {
     if (!isLoaded || transactions.length === 0) {
       return { debt: 0, cost_of_living: 0, pleasure: 0, application: 0 }
     }
 
-    const monthKey = `${currentDate.year}-${String(currentDate.month).padStart(2, "0")}`
-    
     const breakdown = { debt: 0, cost_of_living: 0, pleasure: 0, application: 0 }
-    
+
     transactions
       .filter((t) => {
         const transactionMonth = `${new Date(t.date).getFullYear()}-${String(new Date(t.date).getMonth() + 1).padStart(2, "0")}`
-        return transactionMonth === monthKey && t.type === "expense"
+        return transactionMonth === selectedMonth && t.type === "expense"
       })
       .forEach((t) => {
         const nature = t.expense_nature as ExpenseNature
@@ -333,9 +295,9 @@ export default function PlannedVsActualPage() {
           breakdown[nature] += t.amount
         }
       })
-    
+
     return breakdown
-  }, [transactions, isLoaded, currentDate])
+  }, [transactions, isLoaded, selectedMonth])
 
   const plannedVsActualItems = React.useMemo(() => {
     if (!isPlannedLoaded) return []
@@ -399,21 +361,26 @@ export default function PlannedVsActualPage() {
     )
   }
 
-  const monthName = getMonthName(currentDate.month)
+  const monthName = getMonthName(month - 1)
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-heading text-3xl font-bold text-foreground">Planejado vs Realizado</h1>
-        <p className="mt-1 text-muted-foreground">Compare seus gastos planejados com o realizado</p>
-      </div>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="font-heading text-3xl font-bold text-foreground">Planejado vs Realizado</h1>
+          <p className="mt-1 text-muted-foreground">Compare seus gastos planejados com o realizado</p>
+        </div>
 
-      <div className="flex items-center gap-4">
-        <MonthNavigator 
-          currentDate={currentDate}
-          onPrevious={goToPreviousMonth}
-          onNext={goToNextMonth}
-        />
+        <Select value={selectedMonth} onValueChange={(value) => setSelectedMonth(value || selectedMonth)}>
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {availableMonths.map((m) => (
+              <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Macro Summary */}
@@ -507,8 +474,7 @@ export default function PlannedVsActualPage() {
           item={selectedNature}
           transactions={transactions.filter((t) => {
             const transactionMonth = `${new Date(t.date).getFullYear()}-${String(new Date(t.date).getMonth() + 1).padStart(2, "0")}`
-            const currentMonth = `${currentDate.year}-${String(currentDate.month).padStart(2, "0")}`
-            return transactionMonth === currentMonth
+            return transactionMonth === selectedMonth
           })}
           monthName={monthName}
         />
