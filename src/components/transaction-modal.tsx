@@ -4,7 +4,33 @@ import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Modal, ModalLarge } from "@/components/ui/modal"
+import { CloseButton } from "@/components/ui/close-button"
 import { TransactionType, IncomeType, ExpenseNature, Frequency, getExpenseCategories, getIncomeCategories, getSubcategories, INCOME_TYPES, EXPENSE_NATURES, FREQUENCIES } from "@/hooks/use-transactions"
+import { formatCurrencyDisplay } from "@/lib/monetary-formatting"
+import { Check, House, ForkKnife, Car, Heart, GameController, Package, Wallet, Briefcase, Coins, ShoppingCart, ArrowCounterClockwise, Gift, TrendUp } from "phosphor-react"
+
+function getCategoryIcon(categoryId: string, size: number = 24) {
+  const iconMap: Record<string, React.ReactNode> = {
+    // Expense categories
+    moradia: <House size={size} weight="bold" />,
+    alimentacao: <ForkKnife size={size} weight="bold" />,
+    transporte: <Car size={size} weight="bold" />,
+    saude: <Heart size={size} weight="bold" />,
+    lazer: <GameController size={size} weight="bold" />,
+    outros: <Package size={size} weight="bold" />,
+    // Income categories
+    salario: <Wallet size={size} weight="bold" />,
+    freelance: <Briefcase size={size} weight="bold" />,
+    comissao: <Coins size={size} weight="bold" />,
+    venda: <ShoppingCart size={size} weight="bold" />,
+    reembolso: <ArrowCounterClockwise size={size} weight="bold" />,
+    presente: <Gift size={size} weight="bold" />,
+    rendimento: <TrendUp size={size} weight="bold" />,
+    aluguel_recebido: <House size={size} weight="bold" />,
+    outros_renda: <Package size={size} weight="bold" />,
+  }
+  return iconMap[categoryId] || <Package size={size} weight="bold" />
+}
 
 interface AddTransactionModalProps {
   isOpen: boolean
@@ -23,14 +49,6 @@ interface AddTransactionModalProps {
     installment_number?: number
     purchase_total_amount?: number
   }) => void
-}
-
-function CheckIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20 6 9 17l-5-5" />
-    </svg>
-  )
 }
 
 export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionModalProps) {
@@ -75,15 +93,44 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
 
   React.useEffect(() => {
     if (type === "income") {
+      // Trocar para Receita: limpar estados de Despesa
       setCategory("")
       setSubcategory("")
       setUseInstallments(false)
       setInstallmentTotal("")
       setPurchaseTotalAmount("")
+      setAmount("")
+      setExpenseNature("cost_of_living")
+      setFrequency("occasional")
+      setErrors({})
     } else {
+      // Trocar para Despesa: limpar estados de Receita
       setIncomeType("fixed")
+      setCategory("")
+      setSubcategory("")
+      setErrors({})
     }
   }, [type])
+
+  // Limpar subcategoria ao trocar de categoria
+  React.useEffect(() => {
+    if (category) {
+      setSubcategory("")
+    }
+  }, [category])
+
+  // Limpar campos de parcelado ao desativar parcelamento
+  React.useEffect(() => {
+    if (!useInstallments) {
+      setPurchaseTotalAmount("")
+      setInstallmentTotal("")
+      setAmount("")
+      setErrors((prev) => ({ ...prev, amount: "", category: "" }))
+    } else {
+      setAmount("")
+      setErrors((prev) => ({ ...prev, amount: "" }))
+    }
+  }, [useInstallments])
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/[^0-9]/g, "")
@@ -207,21 +254,24 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
   return (
     <ModalLarge isOpen={isOpen} onClose={() => handleOpenChange(false)}>
       <div>
-        <h2 className="font-heading text-xl font-semibold text-foreground mb-4">
-          Nova Transação
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-heading text-xl font-semibold text-foreground">
+            Nova Transação
+          </h2>
+          <CloseButton onClick={() => handleOpenChange(false)} />
+        </div>
 
         {showSuccess ? (
           <div className="flex flex-col items-center justify-center py-12 space-y-4">
             <div className="h-16 w-16 rounded-full bg-primary/20 flex items-center justify-center">
-              <CheckIcon className="h-8 w-8 text-primary" />
+              <Check size={32} weight="bold" className="text-primary" />
             </div>
             <p className="text-lg font-medium text-foreground">Transação salva!</p>
             <p className="text-sm text-muted-foreground">Sua transação foi adicionada com sucesso.</p>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="p-4 space-y-4">
-            {/* Type Toggle */}
+          <form onSubmit={handleSubmit} className="space-y-5 p-4">
+            {/* ===== BLOCO 1: TIPO DE TRANSAÇÃO (PROTAGONISTA) ===== */}
             <div className="flex gap-2" role="tablist" aria-label="Tipo de transação">
               <button
                 type="button"
@@ -251,32 +301,7 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
               </button>
             </div>
 
-            {/* Income Type - Only for Income */}
-            {type === "income" && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">
-                  Tipo de Renda
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {INCOME_TYPES.map((it) => (
-                    <button
-                      key={it.value}
-                      type="button"
-                      onClick={() => setIncomeType(it.value as IncomeType)}
-                      className={`p-3 rounded-lg border text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card ${
-                        incomeType === it.value
-                          ? "bg-primary/20 border-primary/40"
-                          : "bg-muted/50 border-transparent hover:bg-muted"
-                      }`}
-                    >
-                      <span className="text-xs text-foreground block">{it.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Payment Method Selection - Only for Expenses */}
+            {/* ===== BLOCO 2: FORMA DE PAGAMENTO (CONDICIONAL - DESPESA) ===== */}
             {type === "expense" && (
               <div className="space-y-3">
                 <label className="text-sm font-medium text-foreground">
@@ -285,11 +310,7 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setUseInstallments(false)
-                      setInstallmentTotal("")
-                      setPurchaseTotalAmount("")
-                    }}
+                    onClick={() => setUseInstallments(false)}
                     className={`p-3 rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card ${
                       !useInstallments
                         ? "bg-primary/20 border-primary/40"
@@ -309,14 +330,14 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
                     }`}
                   >
                     <span className="text-sm font-medium text-foreground">Parcelado</span>
-                    <span className="text-xs text-muted-foreground block mt-1">Múltiplas parcelas</span>
+                    <span className="text-xs text-muted-foreground block mt-1">Divida em parcelas</span>
                   </button>
                 </div>
               </div>
             )}
 
-            {/* Amount Input - ONLY for non-parcelado transactions */}
-            {(type === "income" || (type === "expense" && !useInstallments)) && (
+            {/* ===== BLOCO 3: VALOR (CONDICIONAL - estrutura diferente conforme forma) ===== */}
+            {type === "income" && (
               <div className="space-y-2">
                 <label htmlFor="amount" className="text-sm font-medium text-foreground">
                   Valor
@@ -329,7 +350,7 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
                     id="amount"
                     type="text"
                     inputMode="numeric"
-                    value={amount ? (parseInt(amount) / 100).toFixed(2).replace(".", ",") : ""}
+                    value={amount ? formatCurrencyDisplay(parseInt(amount) / 100) : ""}
                     onChange={handleAmountChange}
                     placeholder="0,00"
                     className={`pl-10 pr-3 font-amount text-lg truncate ${errors.amount ? "border-destructive focus-visible:ring-destructive" : ""}`}
@@ -343,13 +364,39 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
               </div>
             )}
 
-            {/* Installment Fields - ONLY for parcelado transactions */}
+            {type === "expense" && !useInstallments && (
+              <div className="space-y-2">
+                <label htmlFor="amount" className="text-sm font-medium text-foreground">
+                  Valor
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                    R$
+                  </span>
+                  <Input
+                    id="amount"
+                    type="text"
+                    inputMode="numeric"
+                    value={amount ? formatCurrencyDisplay(parseInt(amount) / 100) : ""}
+                    onChange={handleAmountChange}
+                    placeholder="0,00"
+                    className={`pl-10 pr-3 font-amount text-lg truncate ${errors.amount ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                    aria-invalid={!!errors.amount}
+                    aria-describedby={errors.amount ? "amount-error" : undefined}
+                  />
+                </div>
+                {errors.amount && (
+                  <p id="amount-error" className="text-sm text-destructive">{errors.amount}</p>
+                )}
+              </div>
+            )}
+
             {type === "expense" && useInstallments && (
               <div className="space-y-3">
                 <div className="rounded-lg bg-primary/5 border border-primary/20 p-3">
                   <p className="text-sm text-foreground font-medium mb-1">Detalhes da Compra Parcelada</p>
                   <p className="text-xs text-muted-foreground">
-                    Preencha o valor total e a quantidade de parcelas. O sistema calculará automaticamente o valor de cada parcela.
+                    Preencha o valor total e a quantidade de parcelas. Calcularemos automaticamente o valor de cada parcela.
                   </p>
                 </div>
 
@@ -366,7 +413,7 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
                         id="purchase-total"
                         type="text"
                         inputMode="numeric"
-                        value={purchaseTotalAmount ? (parseInt(purchaseTotalAmount) / 100).toFixed(2).replace(".", ",") : ""}
+                        value={purchaseTotalAmount ? formatCurrencyDisplay(parseInt(purchaseTotalAmount) / 100) : ""}
                         onChange={(e) => {
                           const value = e.target.value.replace(/[^0-9]/g, "")
                           setPurchaseTotalAmount(value)
@@ -394,13 +441,13 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
                   </div>
                 </div>
 
-                {/* Display calculated monthly amount */}
+                {/* ===== BLOCO 6: CONTEXTO PARCELADO (CONDICIONAL) ===== */}
                 {isParcelado && purchaseTotalAmount && installmentTotal && (
                   <div className="p-4 rounded-lg bg-primary/10 border border-primary/20 space-y-3">
                     <div>
                       <p className="text-xs text-muted-foreground mb-2">Valor de cada parcela</p>
                       <p className="text-2xl font-amount font-semibold text-foreground">
-                        R$ {(parseFloat(purchaseTotalAmount) / 100 / parseInt(installmentTotal)).toFixed(2).replace(".", ",")}
+                        R$ {formatCurrencyDisplay(parseInt(purchaseTotalAmount) / 100 / parseInt(installmentTotal))}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
                         {parseInt(installmentTotal)}x em{" "}
@@ -409,7 +456,7 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
                     </div>
                     <div className="pt-3 border-t border-primary/20">
                       <p className="text-xs text-muted-foreground leading-relaxed">
-                        <span className="font-medium">ⓘ</span> A primeira parcela será lançada no mês atual. As demais serão criadas como "pendentes" para os próximos meses.
+                        <span className="font-medium">ⓘ</span> A primeira parcela será lançada este mês. As demais ficarão pendentes para os próximos meses.
                       </p>
                     </div>
                   </div>
@@ -422,7 +469,7 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
               </div>
             )}
 
-            {/* Category Grid */}
+            {/* ===== BLOCO 4: CATEGORIA (OBRIGATÓRIO - PROTAGONISTA) ===== */}
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">
                 Categoria
@@ -433,13 +480,15 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
                     key={cat.id}
                     type="button"
                     onClick={() => handleCategorySelect(cat.id)}
-                    className={`p-3 rounded-lg border text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card ${
+                    className={`p-3 rounded-lg border text-center flex flex-col items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card ${
                       category === cat.id
                         ? "bg-primary/20 border-primary/40"
                         : "bg-muted/50 border-transparent hover:bg-muted"
                     }`}
                   >
-                    <span className="text-2xl block mb-1">{cat.icon}</span>
+                    <div className="mb-1">
+                      {getCategoryIcon(cat.id, 28)}
+                    </div>
                     <span className="text-xs text-foreground">{cat.name}</span>
                   </button>
                 ))}
@@ -449,10 +498,10 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
               )}
             </div>
 
-            {/* Subcategory - Only for Expenses with subcategories in allowed categories */}
+            {/* ===== BLOCO 5: DETALHAMENTO (CONDICIONAL - SECUNDÁRIO) ===== */}
             {type === "expense" && subcategories.length > 0 && (
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">
+                <label className="text-sm font-medium text-foreground text-muted-foreground">
                   Subcategoria
                 </label>
                 <div className="grid grid-cols-2 gap-2">
@@ -474,11 +523,10 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
               </div>
             )}
 
-            {/* Expense Nature - Only for Expenses */}
             {type === "expense" && (
               <>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">
+                  <label className="text-sm font-medium text-muted-foreground">
                     Natureza da Despesa
                   </label>
                   <div className="grid grid-cols-2 gap-2">
@@ -499,9 +547,8 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
                   </div>
                 </div>
 
-                {/* Frequency */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">
+                  <label className="text-sm font-medium text-muted-foreground">
                     Frequência
                   </label>
                   <div className="grid grid-cols-3 gap-2">
@@ -524,37 +571,61 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
               </>
             )}
 
+            {type === "income" && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground">
+                  Tipo de Renda
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {INCOME_TYPES.map((it) => (
+                    <button
+                      key={it.value}
+                      type="button"
+                      onClick={() => setIncomeType(it.value as IncomeType)}
+                      className={`p-3 rounded-lg border text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card ${
+                        incomeType === it.value
+                          ? "bg-primary/20 border-primary/40"
+                          : "bg-muted/50 border-transparent hover:bg-muted"
+                      }`}
+                    >
+                      <span className="text-xs text-foreground block">{it.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
-            {/* Optional Description */}
-            <div className="space-y-2">
-              <label htmlFor="description" className="text-sm font-medium text-foreground">
-                Descrição (opcional)
-              </label>
-              <Input
-                id="description"
-                type="text"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Ex: Almoço no restaurant"
-                className="bg-muted/50"
-              />
+            {/* ===== BLOCO 7: METADADOS OPCIONAIS (LEVE) ===== */}
+            <div className="space-y-3 pt-2 border-t border-border/30">
+              <div className="space-y-2">
+                <label htmlFor="description" className="text-sm font-medium text-muted-foreground">
+                  Descrição (opcional)
+                </label>
+                <Input
+                  id="description"
+                  type="text"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Ex: Almoço no restaurant"
+                  className="bg-muted/50"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="date" className="text-sm font-medium text-muted-foreground">
+                  Data (opcional)
+                </label>
+                <Input
+                  id="date"
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="bg-muted/50"
+                />
+              </div>
             </div>
 
-            {/* Optional Date */}
-            <div className="space-y-2">
-              <label htmlFor="date" className="text-sm font-medium text-foreground">
-                Data (opcional)
-              </label>
-              <Input
-                id="date"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="bg-muted/50"
-              />
-            </div>
-
-            {/* Submit Button */}
+            {/* ===== BLOCO 8: CTA ===== */}
             <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
               {isSubmitting ? "Criando..." : "Adicionar Transação"}
             </Button>

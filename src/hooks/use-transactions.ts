@@ -18,12 +18,13 @@ import {
   getInstallmentBadge,
   getRemainingInstallments,
   filterDisplayedTransactions,
+  getInstallmentSeries,
   INCOME_TYPES,
   EXPENSE_NATURES,
   FREQUENCIES,
   PLANNING_STATUSES,
 } from "@/lib/transactions/helpers"
-import { apiFetchTransactions, apiCreateTransaction, apiUpdateTransaction, apiDeleteTransaction } from "@/lib/api/transactions"
+import { apiFetchTransactions, apiCreateTransaction, apiUpdateTransaction, apiDeleteTransaction, apiDeleteTransactionSeries } from "@/lib/api/transactions"
 
 export type { TransactionType, IncomeType, ExpenseNature, Frequency, PlanningStatus }
 export type { Transaction, Category, SubCategory }
@@ -137,6 +138,19 @@ export function useTransactions() {
     forceUpdate(n => n + 1)
   }, [])
 
+  const deleteInstallmentSeries = React.useCallback(async (groupId: string) => {
+    // Single API call to delete entire series
+    const result = await apiDeleteTransactionSeries(groupId)
+
+    // Update singleton with remaining transactions
+    transactionsSingleton = transactionsSingleton.filter(t => t.installment_group_id !== groupId)
+    notifyListeners()
+    forceUpdate(n => n + 1)
+
+    // Return result for UI feedback
+    return result
+  }, [])
+
   return {
     transactions,
     isLoaded,
@@ -146,6 +160,7 @@ export function useTransactions() {
     updateTransactionClassification,
     updateTransaction,
     deleteTransaction,
+    deleteInstallmentSeries,
   }
 }
 
@@ -168,7 +183,7 @@ export { calculateExpenseBreakdown }
 export { calculateMonthlyProvisioning }
 export { getTransactionTitle }
 export { getTransactionSubtitle }
-export { isInstallmentTransaction, getInstallmentBadge, getRemainingInstallments, filterDisplayedTransactions }
+export { isInstallmentTransaction, getInstallmentBadge, getRemainingInstallments, filterDisplayedTransactions, getInstallmentSeries }
 export { INCOME_TYPES, EXPENSE_NATURES, FREQUENCIES, PLANNING_STATUSES }
 
 export { usePlannedAmounts, calculatePlannedVsActual, checkAllOnTrack } from "./use-planned-amounts"

@@ -1,3 +1,5 @@
+import { X } from "phosphor-react"
+
 interface CloseButtonProps {
   onClick: () => void
   ariaLabel?: string
@@ -11,7 +13,7 @@ export function CloseButton({ onClick, ariaLabel = "Fechar", className = "absolu
       className={`p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${className}`}
       aria-label={ariaLabel}
     >
-      ✕
+      <X size={20} weight="bold" />
     </button>
   )
 }

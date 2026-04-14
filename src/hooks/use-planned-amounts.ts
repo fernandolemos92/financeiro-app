@@ -222,6 +222,43 @@ export function usePlannedAmounts(initialMonth?: MonthKey) {
     [currentMonthKey]
   )
 
+  const updateMultiplePlannedAmounts = React.useCallback(
+    async (updates: Partial<PlannedAmounts>) => {
+      try {
+        // Get current values as base
+        const current = monthCacheSingleton.get(currentMonthKey) || DEFAULT_PLANNED_AMOUNTS
+
+        // Merge updates with current values
+        const payload: PlannedAmountsPayload = {
+          debt: updates.debt !== undefined ? Math.max(0, updates.debt) : current.debt,
+          cost_of_living: updates.cost_of_living !== undefined ? Math.max(0, updates.cost_of_living) : current.cost_of_living,
+          pleasure: updates.pleasure !== undefined ? Math.max(0, updates.pleasure) : current.pleasure,
+          application: updates.application !== undefined ? Math.max(0, updates.application) : current.application,
+        }
+
+        // Call API with full payload in a single request
+        const result = await apiUpsertPlannedAmounts(currentMonthKey, payload)
+
+        // Mark month as existing
+        monthExistsCache.add(currentMonthKey)
+
+        // Update cache with new values
+        const updated: PlannedAmounts = {
+          debt: result.debt,
+          cost_of_living: result.cost_of_living,
+          pleasure: result.pleasure,
+          application: result.application,
+        }
+        monthCacheSingleton.set(currentMonthKey, updated)
+        setPlannedAmounts({ ...updated })
+      } catch (err) {
+        console.error("Failed to update multiple planned amounts:", err)
+        throw err
+      }
+    },
+    [currentMonthKey]
+  )
+
   const resetPlannedAmounts = React.useCallback(async () => {
     try {
       const result = await apiUpsertPlannedAmounts(currentMonthKey, DEFAULT_PLANNED_AMOUNTS)
@@ -242,6 +279,7 @@ export function usePlannedAmounts(initialMonth?: MonthKey) {
     currentMonthKey,
     setMonth,
     updatePlannedAmount,
+    updateMultiplePlannedAmounts,
     resetPlannedAmounts,
   }
 }

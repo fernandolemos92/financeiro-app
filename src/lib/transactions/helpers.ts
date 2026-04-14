@@ -23,7 +23,7 @@ export function calculateFinancialSummary(
 
   const periodTransactions = transactions.filter((t) => {
     const date = new Date(t.date)
-    return date >= start && date <= end && t.planning_status !== "planned"
+    return date >= start && date <= end
   })
 
   const incomes = periodTransactions.filter((t) => t.type === "income")
@@ -90,7 +90,7 @@ export function calculateExpenseBreakdown(
 
   const periodTransactions = transactions.filter((t) => {
     const date = new Date(t.date)
-    return date >= start && date <= end && t.type === "expense" && t.planning_status !== "planned"
+    return date >= start && date <= end && t.type === "expense"
   })
 
   return {
@@ -248,6 +248,27 @@ export function groupInstallmentTransactions(
 }
 
 /**
+ * Get all transactions in the same installment series as a given transaction
+ * Returns array sorted by installment_number, excluding the input transaction
+ */
+export function getInstallmentSeries(
+  transaction: Transaction,
+  allTransactions: Transaction[]
+): Transaction[] {
+  if (!transaction.installment_group_id) return []
+
+  const series = allTransactions
+    .filter(t => t.installment_group_id === transaction.installment_group_id && t.id !== transaction.id)
+    .sort((a, b) => {
+      const aNum = a.installment_number || 0
+      const bNum = b.installment_number || 0
+      return aNum - bNum
+    })
+
+  return series
+}
+
+/**
  * Process transactions list to avoid duplicate installments:
  * - Group installments by group_id
  * - For each group, show only the "realized" installment
@@ -306,5 +327,6 @@ export function filterDisplayedTransactions(
     }
   }
 
-  return result
+  // Sort by date descending (newest first)
+  return result.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 }

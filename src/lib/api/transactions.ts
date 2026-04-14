@@ -68,3 +68,20 @@ export async function apiDeleteTransaction(id: string): Promise<void> {
     throw new Error(`Failed to delete transaction: ${response.status} ${response.statusText}`)
   }
 }
+
+export async function apiDeleteTransactionSeries(groupId: string): Promise<{ deletedCount: number; groupId: string }> {
+  const response = await fetch(`${BASE}/transactions/series/${groupId}`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to delete transaction series: ${response.status} ${response.statusText}`)
+  }
+
+  const json = await response.json()
+  return json.data
+}

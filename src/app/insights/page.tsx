@@ -5,13 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Modal, ModalLarge } from "@/components/ui/modal"
 import { Button } from "@/components/ui/button"
 import { useTransactions } from "@/hooks/use-transactions"
-import { Chips } from "@/components/chips"
 import { InsightsHealthCard } from "@/components/insights-health"
 import { InsightsRecommendations } from "@/components/insights-recommendations"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { formatCurrency, formatDate, formatMonthYear, getMonthName } from "@/lib/formatting"
+import { XCircle, Info, CheckCircle, ArrowRight } from "phosphor-react"
 
-type HealthStatus = "bom" | "atencao" | "otimo"
+type HealthStatus = "bom" | "atencao" | "otimo" | "sem-dados"
 
 type RecommendationType = "alerta" | "observacao" | "positiva"
 
@@ -30,6 +30,7 @@ interface CategoryDetail {
   label: string
   value: number
   percentage: number
+  transactionCount: number
   transactions: Array<{
     id: string
     description: string
@@ -39,7 +40,7 @@ interface CategoryDetail {
 }
 
 function getHealthStatus(income: number, expenses: number): HealthStatus {
-  if (income === 0) return "bom"
+  if (income === 0) return "sem-dados"
   const ratio = expenses / income
   if (ratio <= 0.7) return "otimo"
   if (ratio <= 0.9) return "bom"
@@ -51,20 +52,26 @@ function getHealthInfo(status: HealthStatus) {
     case "otimo":
       return {
         label: "Ótimo",
-        icon: "⭐",
-        color: "text-green-400",
+        color: "text-lime-500",
+        badge: "Excelente"
       }
     case "bom":
       return {
         label: "Bom",
-        icon: "👍",
         color: "text-primary",
+        badge: "Equilibrado"
       }
     case "atencao":
       return {
         label: "Atenção",
-        icon: "💜",
-        color: "text-secondary",
+        color: "text-orange-500",
+        badge: "Crítico"
+      }
+    case "sem-dados":
+      return {
+        label: "Sem dados",
+        color: "text-muted-foreground",
+        badge: "Sem base"
       }
   }
 }
@@ -86,7 +93,6 @@ export default function InsightsPage() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
   })
 
-  const [showHealthModal, setShowHealthModal] = React.useState(false)
   const [showRecModal, setShowRecModal] = React.useState(false)
   const [selectedRec, setSelectedRec] = React.useState<Recommendation | null>(null)
   const [selectedCategory, setSelectedCategory] = React.useState<CategoryDetail | null>(null)
@@ -172,36 +178,40 @@ export default function InsightsPage() {
     ? Math.round((dominantCategory[1] as number) / totalExpenses * 100)
     : 0
 
-  const healthStatus = React.useMemo(() => {
-    if (currentData.income === 0) return "bom"
+  const healthStatus = React.useMemo((): HealthStatus => {
+    if (currentData.income === 0) return "sem-dados"
     return getHealthStatus(currentData.income, currentData.expenses)
   }, [currentData])
 
-  const healthInfo = getHealthInfo(healthStatus)
+  const healthInfo = React.useMemo(() => {
+    return getHealthInfo(healthStatus)
+  }, [healthStatus])
 
   const healthFactors = React.useMemo(() => {
+    if (currentData.income === 0) return []
+
     const factors: string[] = []
     const balance = currentData.balance
     const ratio = currentData.expenses / (currentData.income || 1)
-    
+
     if (balance >= 0) {
-      factors.push("Saldo positivo no mês")
+      factors.push("Saldo positivo no período")
     } else {
-      factors.push("Saldo negativo no mês")
+      factors.push("Saldo negativo no período")
     }
-    
+
     if (ratio <= 0.7) {
-      factors.push("Despesas abaixo de 70% das receitas")
+      factors.push("Despesas ≤70% das receitas")
     } else if (ratio <= 0.9) {
-      factors.push("Despesas entre 70% e 90% das receitas")
+      factors.push("Despesas entre 70-90% das receitas")
     } else {
-      factors.push("Despesas acima de 90% das receitas")
+      factors.push("Despesas >90% das receitas")
     }
-    
+
     if (dominantCategory && dominantPercentage > 40) {
-      factors.push(`${categoryLabels[dominantCategory[0]] || dominantCategory[0]} representa ${dominantPercentage}% das despesas`)
+      factors.push(`${categoryLabels[dominantCategory[0]] || dominantCategory[0]}: ${dominantPercentage}% dos gastos`)
     }
-    
+
     if (hasPreviousMonth) {
       const balanceChange = currentData.balance - previousData.balance
       if (balanceChange > 0) {
@@ -210,50 +220,57 @@ export default function InsightsPage() {
         factors.push("Saldo pior que mês anterior")
       }
     }
-    
-    return factors.slice(0, 3)
+
+    return factors.slice(0, 4)
   }, [currentData, hasPreviousMonth, previousData, dominantCategory, dominantPercentage])
 
   const healthJustification = React.useMemo(() => {
+    if (currentData.income === 0) {
+      return ""
+    }
+
     const balance = currentData.balance
     const ratio = currentData.expenses / (currentData.income || 1)
-    
+
     if (balance >= 0 && ratio <= 0.7) {
-      return "Você está com contas equilibradas e consegue poupar neste mês."
+      return "Equilíbrio financeiro saudável com capacidade de poupança."
     }
     if (balance >= 0) {
-      return "Você fechou o mês com saldo positivo, mas os gastos estão altos."
+      return "Fechou com saldo positivo, mas gastos acima do ideal."
     }
     if (ratio > 0.9) {
-      return "Suas despesas estão muito altas em relação às receitas."
+      return "Gastos muito altos em relação às receitas."
     }
-    return "Você está no caminho certo, mas pode melhorar o equilíbrio."
+    return "Bom controle, mas com margem para otimização."
   }, [currentData])
 
   const recommendations = React.useMemo((): Recommendation[] => {
+    if (currentData.income === 0) return []
+
     const recs: Recommendation[] = []
     const balance = currentData.balance
     const ratio = currentData.expenses / (currentData.income || 1)
-    const incomeDiff = currentData.income - previousData.income
     const expenseDiff = currentData.expenses - previousData.expenses
-    
+
+    // Alerta: Saldo negativo
     if (balance < 0) {
       recs.push({
         id: "saldo-negativo",
         type: "alerta",
-        fact: `Suas despesas (${formatCurrency(currentData.expenses)}) excederam as receitas (${formatCurrency(currentData.income)}) neste mês.`,
-        why: "Quando as despesas supera as receitas, o saldo fica negativo e compromete o mês seguinte.",
-        action: "Revise os gastos não essenciais do mês.",
+        fact: `Despesas (${formatCurrency(currentData.expenses)}) excedem receitas (${formatCurrency(currentData.income)}).`,
+        why: "Saldo negativo compromete o equilíbrio financeiro nos próximos meses.",
+        action: "Revise categorias de maior gasto e identifique cortes possíveis.",
       })
     }
-    
+
+    // Observação: Categoria dominante
     if (dominantCategory && dominantPercentage > 50) {
       recs.push({
         id: "categoria-dominante",
         type: "observacao",
-        fact: `${categoryLabels[dominantCategory[0]] || dominantCategory[0]} concentrou ${dominantPercentage}% das despesas do mês.`,
-        why: "Concentração alta em uma única categoria aumenta a dependência e o risco.",
-        action: "Avalie se esse peso é recorrente ou pontual.",
+        fact: `${categoryLabels[dominantCategory[0]] || dominantCategory[0]}: ${dominantPercentage}% dos gastos.`,
+        why: "Alta concentração em uma categoria aumenta risco e falta de diversidade.",
+        action: "Verifique se esse padrão é recorrente ou pontual.",
         category: dominantCategory[0] as string,
         percentage: dominantPercentage,
       })
@@ -261,50 +278,52 @@ export default function InsightsPage() {
       recs.push({
         id: "categoria-alta",
         type: "observacao",
-        fact: `${categoryLabels[dominantCategory[0]] || dominantCategory[0]} representa ${dominantPercentage}% das despesas.`,
-        why: "Uma categoria com peso alto pode indicar padrão de gasto a ser monitorado.",
+        fact: `${categoryLabels[dominantCategory[0]] || dominantCategory[0]}: ${dominantPercentage}% dos gastos.`,
+        why: "Monitorar categorias pesadas ajuda a manter controle.",
+        action: "Acompanhe se essa proporção se mantém nos próximos meses.",
         category: dominantCategory[0] as string,
         percentage: dominantPercentage,
       })
     }
-    
-    if (hasPreviousMonth) {
-      if (expenseDiff > 0 && currentData.expenses > previousData.expenses) {
-        recs.push({
-          id: "despesas-aumentaram",
-          type: "alerta",
-          fact: `Seus gastos subiram ${formatCurrency(expenseDiff)} em relação ao mês anterior.`,
-          why: "Aumento de despesas sem aumento de receitas pressiona o orçamento.",
-          action: "Monitore os próximos meses para evitar escalada.",
-        })
-      }
-      
-      if (expenseDiff < 0 && previousData.expenses > 0) {
-        recs.push({
-          id: "despesas-cairam",
-          type: "positiva",
-          fact: `Você gastou ${formatCurrency(Math.abs(expenseDiff))} a menos que no mês passado.`,
-          why: "Reduzir despesas mantendo receitas fortalece o saldo.",
-          action: "Continue monitorsando para manter o padrão.",
-        })
-      }
-    }
-    
-    if (balance > 0 && ratio <= 0.9 && recs.filter(r => r.type !== "positiva").length < 2) {
+
+    // Alerta: Gastos aumentaram vs mês anterior
+    if (hasPreviousMonth && expenseDiff > 0 && currentData.expenses > previousData.expenses) {
       recs.push({
-        id: "situacaopositiva",
-        type: "positiva",
-        fact: "Você fechou o mês com saldo positivo.",
-        why: "Saldo positivo permite reserva de emergência e investimentos.",
-        action: "Considere guardar uma parte para objetivos futuros.",
+        id: "despesas-aumentaram",
+        type: "alerta",
+        fact: `Gastos aumentaram ${formatCurrency(expenseDiff)} vs. mês anterior.`,
+        why: "Aumento consistente de despesas afeta a saúde financeira.",
+        action: "Investigue os maiores aumentos por categoria.",
       })
     }
-    
+
+    // Positivo: Gastos diminuíram
+    if (hasPreviousMonth && expenseDiff < 0 && previousData.expenses > 0) {
+      recs.push({
+        id: "despesas-cairam",
+        type: "positiva",
+        fact: `Redução de ${formatCurrency(Math.abs(expenseDiff))} em gastos vs. mês anterior.`,
+        why: "Reduzir despesas fortalece o saldo e a saúde financeira.",
+        action: "Mantenha esse padrão nos próximos períodos.",
+      })
+    }
+
+    // Positivo: Saldo positivo com bom índice
+    if (balance > 0 && ratio <= 0.9 && recs.filter(r => r.type !== "positiva").length < 2) {
+      recs.push({
+        id: "situacao-positiva",
+        type: "positiva",
+        fact: "Fechou com saldo positivo e gastos controlados.",
+        why: "Saldo positivo permite reserva de emergência e investimentos.",
+        action: "Considere destinar uma parte para objetivos de longo prazo.",
+      })
+    }
+
     const alerts = recs.filter(r => r.type === "alerta")
     const observacoes = recs.filter(r => r.type === "observacao")
     const positivas = recs.filter(r => r.type === "positiva")
-    
-    return [...alerts, ...observacoes, ...positivas].slice(0, 3)
+
+    return [...alerts, ...observacoes, ...positivas].slice(0, 4)
   }, [currentData, previousData, hasPreviousMonth, dominantCategory, dominantPercentage])
 
   const availableMonths = React.useMemo(() => {
@@ -329,15 +348,16 @@ export default function InsightsPage() {
     const txs = currentData.byCategoryTx[categoryName] || []
     const value = currentData.byCategory[categoryName] || 0
     const percentage = Math.round((value / totalExpenses) * 100)
-    
+
     setSelectedCategory({
       name: categoryName,
       label: categoryLabel,
       value,
       percentage,
+      transactionCount: txs.length,
       transactions: txs
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        .slice(0, 20)
+        .slice(0, 50)
         .map(t => ({
           id: t.id,
           description: t.description || categoryLabel,
@@ -349,7 +369,7 @@ export default function InsightsPage() {
 
   if (!isLoaded) {
     return (
-      <div className="space-y-8">
+      <div className="space-y-6">
         <div>
           <h1 className="font-heading text-3xl font-bold text-foreground">Insights</h1>
           <p className="mt-1 text-muted-foreground">Carregando...</p>
@@ -362,10 +382,11 @@ export default function InsightsPage() {
 
   return (
     <div className="space-y-8">
+      {/* HEADER */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-heading text-3xl font-bold text-foreground">Insights</h1>
-          <p className="mt-1 text-muted-foreground">Análise financeira de {formatMonthYear(month - 1, year)}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{formatMonthYear(month - 1, year)}</p>
         </div>
         <Select value={selectedMonth} onValueChange={(value) => setSelectedMonth(value || selectedMonth)}>
           <SelectTrigger className="w-40">
@@ -379,28 +400,68 @@ export default function InsightsPage() {
         </Select>
       </div>
 
-      {hasData && hasPreviousMonth && (
-        <Chips
-          items={[
-            currentData.income - previousData.income !== 0 ? {
-              label: "Receitas:",
-              value: `${currentData.income - previousData.income > 0 ? "↑" : "↓"} ${formatCurrency(Math.abs(currentData.income - previousData.income))}`,
-              color: currentData.income - previousData.income > 0 ? "green" : "red",
-            } : null,
-            currentData.expenses - previousData.expenses !== 0 ? {
-              label: "Despesas:",
-              value: `${currentData.expenses - previousData.expenses > 0 ? "↑" : "↓"} ${formatCurrency(Math.abs(currentData.expenses - previousData.expenses))}`,
-              color: currentData.expenses - previousData.expenses < 0 ? "primary" : "secondary",
-            } : null,
-          ].filter(Boolean) as { label: string; value: string; color: "green" | "red" | "primary" | "secondary" | "neutral" }[]}
-        />
-      )}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* CAMADA 1: RESUMO EXECUTIVO DO PERÍODO */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      <Card>
+        <CardContent className="p-6">
+          <div className="grid grid-cols-3 gap-6">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-2">Receitas</p>
+              <p className="font-amount text-2xl font-bold text-foreground">
+                {formatCurrency(currentData.income)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-2">Despesas</p>
+              <p className="font-amount text-2xl font-bold text-foreground">
+                {formatCurrency(currentData.expenses)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-2">Saldo</p>
+              <p className="font-amount text-2xl font-bold text-foreground">
+                {formatCurrency(currentData.balance)}
+              </p>
+            </div>
+          </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Variação vs mês anterior (se houver base) */}
+          {hasPreviousMonth && (
+            <div className="mt-6 pt-6 border-t border-border/30">
+              <p className="text-xs font-medium text-muted-foreground mb-3">vs. Mês anterior</p>
+              <div className="grid grid-cols-3 gap-6 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Receitas</span>
+                  <span className="font-semibold text-foreground">
+                    {currentData.income - previousData.income >= 0 ? "+" : ""}{formatCurrency(currentData.income - previousData.income)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Despesas</span>
+                  <span className="font-semibold text-foreground">
+                    {currentData.expenses - previousData.expenses >= 0 ? "+" : ""}{formatCurrency(currentData.expenses - previousData.expenses)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Saldo</span>
+                  <span className="font-semibold text-foreground">
+                    {currentData.balance - previousData.balance >= 0 ? "+" : ""}{formatCurrency(currentData.balance - previousData.balance)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* CAMADA 2: DIAGNÓSTICO FINANCEIRO + CAMADA 3: RECOMENDAÇÕES */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-lg">Saúde Financeira</CardTitle>
-            <span className="text-xs text-muted-foreground">ver detalhes</span>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Diagnóstico do Período</CardTitle>
           </CardHeader>
           <CardContent>
             <InsightsHealthCard
@@ -408,125 +469,38 @@ export default function InsightsPage() {
               info={healthInfo}
               justification={healthJustification}
               factors={healthFactors}
-              onOpen={() => setShowHealthModal(true)}
+              hasData={hasData}
             />
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-lg">Recomendações</CardTitle>
-            <span className="text-xs text-muted-foreground">{recommendations.length} itens</span>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Recomendações</CardTitle>
           </CardHeader>
           <CardContent>
             <InsightsRecommendations
               recommendations={recommendations}
               hasData={hasData}
-              onSelect={openRecDetail}
+              onSelect={(rec) => {
+                setSelectedRec(rec)
+                setShowRecModal(true)
+              }}
             />
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* CAMADA 4: EXPLICAÇÃO DOS GASTOS */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {hasData && sortedCategories.length > 0 && (
         <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              {getMonthName(month)} {year}
-            </CardTitle>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Distribuição de Gastos</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {hasData ? (
-              <>
-                <div className="flex justify-between items-center">
-                  <span className="text-foreground">Receitas</span>
-                  <span className="font-amount text-green-400">
-                    {formatCurrency(currentData.income)}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-foreground">Despesas</span>
-                  <span className={`font-amount ${healthStatus === "atencao" ? "text-secondary" : "text-red-400"}`}>
-                    {formatCurrency(currentData.expenses)}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center pt-3 border-t border-border/50">
-                  <span className="text-foreground font-medium">Saldo</span>
-                  <span className={`font-amount font-semibold ${currentData.balance >= 0 ? "text-primary" : "text-secondary"}`}>
-                    {formatCurrency(currentData.balance)}
-                  </span>
-                </div>
-              </>
-            ) : (
-              <p className="text-muted-foreground text-center py-4">
-                Nenhuma transação neste período
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Mês anterior
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {hasPreviousMonth ? (
-              <>
-                <div className="flex justify-between items-center">
-                  <span className="text-foreground">Receitas</span>
-                  <span className="font-amount text-muted-foreground">
-                    {formatCurrency(previousData.income)}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-foreground">Despesas</span>
-                  <span className="font-amount text-muted-foreground">
-                    {formatCurrency(previousData.expenses)}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center pt-3 border-t border-border/50">
-                  <span className="text-foreground font-medium">Saldo</span>
-                  <span className={`font-amount ${previousData.balance >= 0 ? "text-primary" : "text-secondary"}`}>
-                    {formatCurrency(previousData.balance)}
-                  </span>
-                </div>
-                {hasData && (
-                  <div className="mt-3 pt-3 border-t border-border/30">
-                    {currentData.balance - previousData.balance !== 0 && (
-                      <p className={`text-xs ${
-                        currentData.balance - previousData.balance > 0 
-                          ? "text-green-400" 
-                          : "text-secondary"
-                      }`}>
-                        {currentData.balance - previousData.balance > 0 ? "↑" : "↓"} {formatCurrency(Math.abs(currentData.balance - previousData.balance))} em relação ao mês atual
-                      </p>
-                    )}
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="text-center py-4">
-                <p className="text-muted-foreground text-sm mb-2">
-                  Sem base comparativa do mês anterior
-                </p>
-                <p className="text-xs text-muted-foreground/70">
-                  Os insights desta tela estão baseados apenas no mês selecionado
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Gastos por categoria</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {sortedCategories.length > 0 ? (
-            sortedCategories.map(([category, amount]) => {
+          <CardContent className="space-y-4">
+            {sortedCategories.map(([category, amount]) => {
               const percentage = Math.round((amount as number) / totalExpenses * 100)
               const label = categoryLabels[category] || category
               return (
@@ -536,141 +510,82 @@ export default function InsightsPage() {
                   tabIndex={0}
                   onClick={() => openCategoryDetail(category, label)}
                   onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && openCategoryDetail(category, label)}
-                  className="space-y-2 cursor-pointer hover:bg-muted/30 p-2 -m-2 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="group space-y-2 cursor-pointer hover:bg-muted/40 p-2.5 -m-2.5 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  <div className="flex justify-between text-sm">
-                    <span className="text-foreground">{label}</span>
-                    <span className="text-muted-foreground">
-                      {formatCurrency(amount as number)} ({percentage}%)
-                    </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-foreground">{label}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-semibold text-foreground">{formatCurrency(amount as number)}</span>
+                      <span className="text-xs font-medium text-muted-foreground min-w-max">{percentage}%</span>
+                    </div>
                   </div>
                   <div className="h-2 bg-muted rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-secondary rounded-full"
+                      className="h-full bg-foreground/25 group-hover:bg-foreground/35 rounded-full transition-colors"
                       style={{ width: `${percentage}%` }}
                     />
                   </div>
                 </div>
               )
-            })
-          ) : (
-            <p className="text-muted-foreground text-center py-4">
-              Nenhuma despesa neste período
-            </p>
-          )}
-        </CardContent>
-      </Card>
+            })}
+          </CardContent>
+        </Card>
+      )}
 
-      <Modal isOpen={showHealthModal} onClose={() => setShowHealthModal(false)}>
-        <div className="space-y-4">
-          <div className="flex items-center gap-4">
-            <div className="h-14 w-14 rounded-full bg-primary/20 flex items-center justify-center text-3xl">
-              {healthInfo.icon}
-            </div>
-            <div>
-              <h2 className={`font-heading text-xl font-semibold ${healthInfo.color}`}>
-                Saúde {healthInfo.label}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Análise de {formatMonthYear(month - 1, year)}
-              </p>
-            </div>
-          </div>
-          
-          <div className="pt-4 border-t border-border">
-            <h3 className="text-sm font-medium mb-2">Justificativa</h3>
-            <p className="text-muted-foreground">{healthJustification}</p>
-          </div>
-          
-          <div className="pt-4 border-t border-border">
-            <h3 className="text-sm font-medium mb-2">Sinais considerados</h3>
-            <ul className="space-y-2">
-              {healthFactors.map((factor, idx) => (
-                <li key={idx} className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                  {factor}
-                </li>
-              ))}
-            </ul>
-          </div>
-          
-          <div className="pt-4 border-t border-border">
-            <h3 className="text-sm font-medium mb-2">Dados do mês</h3>
-            <div className="grid grid-cols-3 gap-4 text-center">
-              <div>
-                <p className="text-xs text-muted-foreground">Receitas</p>
-                <p className="font-amount text-green-400">{formatCurrency(currentData.income)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Despesas</p>
-                <p className="font-amount text-secondary">{formatCurrency(currentData.expenses)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Saldo</p>
-                <p className={`font-amount ${currentData.balance >= 0 ? "text-primary" : "text-secondary"}`}>
-                  {formatCurrency(currentData.balance)}
-                </p>
-              </div>
-            </div>
-          </div>
-          
-          <Button onClick={() => setShowHealthModal(false)} className="w-full">
-            Fechar
-          </Button>
-        </div>
-      </Modal>
-
-      <Modal isOpen={showRecModal} onClose={() => setShowRecModal(false)}>
+<Modal isOpen={showRecModal} onClose={() => setShowRecModal(false)}>
         {selectedRec && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
-                selectedRec.type === "alerta" 
-                  ? "bg-secondary/20" 
-                  : selectedRec.type === "observacao" 
-                    ? "bg-yellow-400/20" 
-                    : "bg-green-400/20"
-              }`}>
-                <span className={`text-lg ${
-                  selectedRec.type === "alerta" 
-                    ? "text-secondary" 
-                    : selectedRec.type === "observacao" 
-                      ? "text-yellow-400" 
-                      : "text-green-400"
-                }`}>
-                  {selectedRec.type === "alerta" ? "!" : selectedRec.type === "observacao" ? "●" : "✓"}
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 mb-2">
+                {selectedRec.type === "alerta" && <XCircle size={20} className="text-red-500" weight="bold" />}
+                {selectedRec.type === "observacao" && <Info size={20} className="text-orange-500" weight="bold" />}
+                {selectedRec.type === "positiva" && <CheckCircle size={20} className="text-lime-500" weight="bold" />}
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  {selectedRec.type === "alerta"
+                    ? "Alerta"
+                    : selectedRec.type === "observacao"
+                      ? "Observação"
+                      : "Positivo"}
                 </span>
               </div>
-              <div>
-                <p className="text-xs uppercase tracking-wider text-muted-foreground">
-                  {selectedRec.type}
-                </p>
-                <p className="font-medium text-foreground">{selectedRec.fact}</p>
-              </div>
+              <h2 className="font-heading text-xl font-semibold text-foreground">
+                {selectedRec.fact}
+              </h2>
             </div>
-            
-            <div className="pt-4 border-t border-border">
-              <h3 className="text-sm font-medium mb-2">Por que isso importa</h3>
-              <p className="text-muted-foreground text-sm">{selectedRec.why}</p>
+
+            <div className="pt-4 border-t border-border/30">
+              <h3 className="text-sm font-medium text-foreground mb-2">Por que importa</h3>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                {selectedRec.why}
+              </p>
             </div>
-            
+
             {selectedRec.action && (
-              <div className="pt-4 border-t border-border">
-                <h3 className="text-sm font-medium mb-2">Orientação</h3>
-                <p className="text-muted-foreground text-sm">{selectedRec.action}</p>
-              </div>
-            )}
-            
-            {hasPreviousMonth && (
-              <div className="pt-4 border-t border-border">
-                <h3 className="text-sm font-medium mb-2">Comparação</h3>
-                <p className="text-muted-foreground text-xs">
-                  Insight baseado em {formatMonthYear(month - 1, year)}
-                  {hasPreviousMonth ? " com comparação do mês anterior" : " sem mês anterior"}
+              <div className="pt-4 border-t border-border/30">
+                <h3 className="text-sm font-medium text-foreground mb-2">Sugestão de ação</h3>
+                <p className="text-sm text-foreground flex items-center gap-2">
+                  <ArrowRight size={16} className="flex-shrink-0" />
+                  <span>{selectedRec.action}</span>
                 </p>
               </div>
             )}
-            
+
+            {selectedRec.category && (
+              <div className="pt-4 border-t border-border/30">
+                <h3 className="text-sm font-medium text-foreground mb-2">Categoria</h3>
+                <p className="text-sm text-muted-foreground">
+                  <span className="font-semibold text-foreground">{categoryLabels[selectedRec.category] || selectedRec.category}</span>
+                  {selectedRec.percentage && ` (${selectedRec.percentage}% dos gastos)`}
+                </p>
+              </div>
+            )}
+
+            <div className="pt-4 border-t border-border/30">
+              <p className="text-xs text-muted-foreground">
+                {formatMonthYear(month - 1, year)}
+              </p>
+            </div>
+
             <Button onClick={() => setShowRecModal(false)} className="w-full">
               Fechar
             </Button>
@@ -680,46 +595,85 @@ export default function InsightsPage() {
 
       <ModalLarge isOpen={!!selectedCategory} onClose={() => setSelectedCategory(null)}>
         {selectedCategory && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-medium text-foreground">
-                  {selectedCategory.label}
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  {selectedCategory.percentage}% das despesas do mês
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="font-amount text-xl text-foreground">
-                  {formatCurrency(selectedCategory.value)}
-                </p>
+          <div className="space-y-6">
+            {/* Header */}
+            <div className="space-y-3">
+              <h2 className="font-heading text-2xl font-semibold text-foreground">
+                {selectedCategory.label}
+              </h2>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Total</p>
+                  <p className="font-amount text-lg font-bold text-foreground">
+                    {formatCurrency(selectedCategory.value)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">% do mês</p>
+                  <p className="font-amount text-lg font-bold text-foreground">
+                    {selectedCategory.percentage}%
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Movimentações</p>
+                  <p className="font-amount text-lg font-bold text-foreground">
+                    {selectedCategory.transactionCount}
+                  </p>
+                </div>
               </div>
             </div>
-            
-            <div className="pt-4 border-t border-border">
-              <h3 className="text-sm font-medium mb-3">Transações ({selectedCategory.transactions.length})</h3>
+
+            {/* Transações */}
+            <div className="pt-4 border-t border-border/30">
+              <h3 className="text-sm font-medium text-foreground mb-4">Transações</h3>
               {selectedCategory.transactions.length > 0 ? (
-                <div className="space-y-2 max-h-80 overflow-y-auto">
-                  {selectedCategory.transactions.map((tx) => (
-                    <div key={tx.id} className="flex justify-between items-center py-2 border-b border-border/30 last:border-0">
-                      <div>
-                        <p className="text-sm text-foreground">{tx.description}</p>
-                        <p className="text-xs text-muted-foreground">{formatDate(tx.date)}</p>
+                <div className="space-y-0 max-h-96 overflow-y-auto pr-2">
+                  {selectedCategory.transactions.map((tx, idx) => (
+                    <div key={tx.id} className={`flex items-center justify-between py-3 ${
+                      idx !== selectedCategory.transactions.length - 1 ? "border-b border-border/20" : ""
+                    }`}>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-foreground truncate">
+                          {tx.description}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {formatDate(tx.date)}
+                        </p>
                       </div>
-                      <p className="font-amount text-foreground">
+                      <p className="font-amount font-semibold text-foreground ml-4">
                         {formatCurrency(tx.amount)}
                       </p>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-muted-foreground text-sm">
-                  Nenhuma transação nesta categoria
-                </p>
+                <div className="text-center py-8">
+                  <p className="text-sm text-muted-foreground">
+                    Sem transações
+                  </p>
+                </div>
               )}
             </div>
-            
+
+            {selectedCategory.transactions.length > 0 && (
+              <div className="pt-4 border-t border-border/30">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Maior transação</p>
+                    <p className="font-amount font-semibold text-foreground">
+                      {formatCurrency(Math.max(...selectedCategory.transactions.map(t => t.amount)))}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Ticket médio</p>
+                    <p className="font-amount font-semibold text-foreground">
+                      {formatCurrency(selectedCategory.value / selectedCategory.transactions.length)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <Button onClick={() => setSelectedCategory(null)} className="w-full">
               Fechar
             </Button>

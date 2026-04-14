@@ -4,6 +4,7 @@ import * as React from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { CloseButton } from "@/components/ui/close-button"
 import { GoalModal } from "@/components/goal-modal"
 import { Modal } from "@/components/ui/modal"
 import { toast } from "sonner"
@@ -20,22 +21,7 @@ import {
   Goal,
   GoalContribution,
 } from "@/hooks/use-goals"
-
-function PlusIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  )
-}
-
-function TrashIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-    </svg>
-  )
-}
+import { Plus, Trash } from "phosphor-react"
 
 function GoalDetailModal({
   goal,
@@ -112,10 +98,13 @@ function GoalDetailModal({
   return (
     <Modal isOpen={true} onClose={onClose} className="max-w-lg">
       <div className="p-4 border-b border-border">
-        <div className="flex items-center justify-between">
+        <div className="flex items-start justify-between mb-2">
           <h3 className="font-heading text-lg font-semibold text-foreground">
             Detalhes da Meta
           </h3>
+          <CloseButton onClick={onClose} className="" />
+        </div>
+        <div className="flex items-center justify-between">
           <span className={`text-sm font-medium ${getStatusColor()}`}>
             {getStatusLabel()}
           </span>
@@ -263,7 +252,7 @@ function GoalDetailModal({
           </>
         )}
         <Button variant="destructive" className="flex-1" onClick={() => onDelete(goal.id)}>
-          <TrashIcon className="h-4 w-4 mr-2" />
+          <Trash size={16} className="mr-2" />
           Excluir
         </Button>
       </div>
@@ -437,16 +426,23 @@ export default function GoalsPage() {
           <p className="mt-1 text-muted-foreground">Acompanhe suas metas financeiras</p>
         </div>
         <Button onClick={() => setIsModalOpen(true)}>
-          <PlusIcon className="h-4 w-4 mr-2" />
+          <Plus size={16} className="mr-2" />
           Nova Meta
         </Button>
       </div>
 
       {/* Active Goals */}
       <div>
-        <h2 className="font-heading text-xl font-semibold text-foreground mb-4">
-          {activeGoals.length === 0 ? "Nenhuma meta ativa" : "Metas ativas"}
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-heading text-xl font-semibold text-foreground">
+            {activeGoals.length === 0 ? "Nenhuma meta ativa" : "Metas ativas"}
+          </h2>
+          {activeGoals.length > 0 && (
+            <p className="text-sm text-muted-foreground">
+              Total nas metas: <span className="font-semibold text-foreground">{formatCurrency(activeGoals.reduce((sum, g) => sum + g.currentAmount, 0))}</span>
+            </p>
+          )}
+        </div>
         
         {activeGoals.length === 0 ? (
           <Card className="py-8">

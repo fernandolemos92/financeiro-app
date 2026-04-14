@@ -28,7 +28,7 @@ export function createTransactionNormalizer(config: NormalizerConfig = defaultNo
     normalize(record: Partial<Transaction>): Transaction {
       const isIncome = record.type === "income"
       const isExpense = record.type === "expense"
-      
+
       return {
         id: record.id || "",
         type: record.type || "expense",
@@ -42,6 +42,11 @@ export function createTransactionNormalizer(config: NormalizerConfig = defaultNo
         expense_nature: record.expense_nature ?? (isExpense ? config.expenseNature : undefined),
         frequency: record.frequency ?? config.frequency,
         planning_status: record.planning_status ?? config.planningStatus,
+        // Preserve installment series fields
+        installment_number: record.installment_number,
+        installment_total: record.installment_total,
+        installment_group_id: record.installment_group_id,
+        purchase_total_amount: record.purchase_total_amount,
       }
     }
   }

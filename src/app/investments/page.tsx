@@ -4,9 +4,27 @@ import * as React from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Modal } from "@/components/ui/modal"
-import { useInvestments, investmentTypeLabels } from "@/hooks/use-investments"
+import { useInvestments, investmentTypeLabels, getInvestmentValueType, calculateReturnBreakdown } from "@/hooks/use-investments"
 import { InvestmentModal } from "@/components/investment-modal"
 import { formatCurrency, formatDate } from "@/lib/formatting"
+
+// Type labels - neutral, coesive visual language
+const TYPE_LABEL: Record<string, string> = {
+  renda_fixa: "Renda Fixa",
+  renda_variavel: "Ações",
+  previdencia: "Previdência",
+  imobiliario: "FII",
+  outros: "Outro",
+}
+
+// Neutral color palette: subtle text colors only, no highlights
+const TYPE_COLOR: Record<string, string> = {
+  renda_fixa: "text-muted-foreground",
+  renda_variavel: "text-muted-foreground",
+  previdencia: "text-muted-foreground",
+  imobiliario: "text-muted-foreground",
+  outros: "text-muted-foreground",
+}
 
 export default function InvestmentsPage() {
   const {
@@ -15,11 +33,17 @@ export default function InvestmentsPage() {
     addInvestment,
     updateInvestment,
     deleteInvestment,
-    totalInvested,
+    totalAllocated,
+    totalCurrentValue,
+    totalUnrealizedVariation,
+    totalProventos,
+    trackedAssetsCount,
     distributionByType,
-    totalExpectedValue,
-    totalGainLoss,
-    gainLossPercentage
+    calculateCurrentValue,
+    calculateReturnBreakdown: getReturnBreakdown,
+    investmentsGroupA,
+    investmentsGroupB,
+    investmentsWithoutTrackedValue,
   } = useInvestments()
 
   const [isModalOpen, setIsModalOpen] = React.useState(false)
@@ -58,167 +82,311 @@ export default function InvestmentsPage() {
 
   if (!isLoaded) {
     return (
-      <div className="space-y-8">
-        <div>
-          <h1 className="font-heading text-3xl font-bold text-foreground">Investimentos</h1>
-          <p className="mt-1 text-muted-foreground">Carregando...</p>
-        </div>
+      <div className="space-y-4">
+        <h1 className="font-heading text-3xl font-bold text-foreground">Investimentos</h1>
+        <p className="text-muted-foreground">Carregando...</p>
       </div>
     )
   }
 
   const hasInvestments = investments.length > 0
+  const pendingCount = investmentsWithoutTrackedValue.length
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between pb-2">
         <div>
           <h1 className="font-heading text-3xl font-bold text-foreground">Investimentos</h1>
-          <p className="mt-1 text-muted-foreground">Acompanhe sua carteira de investimentos</p>
         </div>
         <Button onClick={() => setIsModalOpen(true)}>
-          + Novo Investimento
+          + Novo
         </Button>
       </div>
 
-      {/* Portfolio Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Investido
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="font-amount text-2xl font-bold text-primary">
-              {formatCurrency(totalInvested)}
-            </p>
+      {!hasInvestments ? (
+        /* Empty State */
+        <Card className="border-dashed">
+          <CardContent className="text-center py-12">
+            <p className="text-muted-foreground font-medium">Nenhum investimento cadastrado</p>
+            <p className="text-sm text-muted-foreground mt-2">Clique em "Novo" para adicionar</p>
           </CardContent>
         </Card>
+      ) : (
+        <>
+          {/* Overview KPIs — Compact and discrete */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <Card className="border-border/50">
+              <CardContent className="p-3">
+                <p className="text-xs font-medium text-muted-foreground mb-1">Total Alocado</p>
+                <p className="font-amount text-lg font-bold text-foreground">
+                  {formatCurrency(totalAllocated)}
+                </p>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Número de investimentos
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="font-amount text-2xl font-bold text-foreground">
-              {investments.length}
-            </p>
-          </CardContent>
-        </Card>
+            <Card className="border-border/50">
+              <CardContent className="p-3">
+                <p className="text-xs font-medium text-muted-foreground mb-1">Acompanhados</p>
+                <p className="font-amount text-lg font-bold text-foreground">
+                  {trackedAssetsCount}/{investments.length}
+                </p>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Valor Atual / Ganho
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className={`font-amount text-2xl font-bold ${totalGainLoss >= 0 ? "text-green-400" : "text-secondary"}`}>
-              {totalInvested > 0 
-                ? `${totalGainLoss >= 0 ? "+" : ""}${formatCurrency(totalGainLoss)} (${gainLossPercentage.toFixed(1)}%)`
-                : "-"}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+            <Card className="border-border/50">
+              <CardContent className="p-3">
+                <p className="text-xs font-medium text-muted-foreground mb-1">Variação</p>
+                {trackedAssetsCount > 0 ? (
+                  <p className={`font-amount text-lg font-bold ${totalUnrealizedVariation.variation >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+                    {totalUnrealizedVariation.variation >= 0 ? "+" : ""}{formatCurrency(totalUnrealizedVariation.variation)}
+                  </p>
+                ) : (
+                  <p className="font-amount text-lg font-bold text-muted-foreground">—</p>
+                )}
+              </CardContent>
+            </Card>
 
-      {/* Distribution by Type */}
-      {hasInvestments && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Distribuição por Tipo</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {Object.entries(distributionByType).map(([type, amount]) => {
-              const percentage = totalInvested > 0 ? (amount / totalInvested) * 100 : 0
-              return (
-                <div key={type} className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-foreground">
-                      {investmentTypeLabels[type as keyof typeof investmentTypeLabels] || type}
-                    </span>
-                    <span className="text-muted-foreground">
-                      {formatCurrency(amount)} ({percentage.toFixed(1)}%)
-                    </span>
-                  </div>
-                  <div className="h-2 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-primary rounded-full"
-                      style={{ width: `${percentage}%` }}
-                    />
-                  </div>
+            <Card className="border-border/50">
+              <CardContent className="p-3">
+                <p className="text-xs font-medium text-muted-foreground mb-1">Proventos</p>
+                <p className={`font-amount text-lg font-bold ${totalProventos > 0 ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}`}>
+                  {totalProventos > 0 ? "+" : ""}{formatCurrency(totalProventos)}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Allocation — Clean and cohesive */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Alocação por Tipo</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2.5">
+              {Object.entries(distributionByType)
+                .sort(([, a], [, b]) => b - a)
+                .map(([type, amount]) => {
+                  const percentage = totalAllocated > 0 ? (amount / totalAllocated) * 100 : 0
+
+                  return (
+                    <div key={type} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-medium text-muted-foreground">
+                          {TYPE_LABEL[type] || type}
+                        </span>
+                        <div className="text-right">
+                          <span className="font-medium text-foreground">{formatCurrency(amount)}</span>
+                          <span className="text-xs text-muted-foreground ml-2">{percentage.toFixed(0)}%</span>
+                        </div>
+                      </div>
+                      <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-foreground/20 rounded-full"
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+            </CardContent>
+          </Card>
+
+          {/* Investments List — Clean and scannable */}
+          <div className="space-y-1">
+            {investmentsGroupA.length > 0 && (
+              <>
+                <div className="px-1 py-2">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    Renda Fixa & Previdência
+                  </h3>
                 </div>
-              )
-            })}
-          </CardContent>
-        </Card>
-      )}
+                <div className="space-y-2">
+                  {investmentsGroupA.map((investment) => {
+                    const breakdown = getReturnBreakdown(investment)
+                    const valueType = breakdown.currentValue !== null ? "Estimado" : "Sem atualização"
 
-      {/* Investment List */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Meus Investimentos</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {hasInvestments ? (
-            <div className="space-y-3">
-              {investments.map((investment) => (
-                <div
-                  key={investment.id}
-                  className="flex items-center justify-between p-4 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors"
-                >
-                  <div className="flex-1">
-                    <p className="font-medium text-foreground">{investment.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {investmentTypeLabels[investment.type]} • {formatDate(investment.date)}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-amount text-lg font-semibold text-foreground">
-                      {formatCurrency(investment.amount)}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {investment.expectedReturn}% a.a.
-                    </p>
-                    <p className={`text-xs ${investment.expectedReturn > 0 ? "text-green-400" : "text-muted-foreground"}`}>
-                      Atual: {formatCurrency(investment.amount * Math.pow(1 + investment.expectedReturn / 100 / 12, 
-                        Math.max(1, Math.floor((new Date().getTime() - new Date(investment.date).getTime()) / (1000 * 60 * 60 * 24 * 30)))))}
-                    </p>
-                  </div>
-                  <div className="flex gap-2 ml-4">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleEdit(investment)}
-                    >
-                      Editar
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleDelete(investment.id)}
-                    >
-                      Excluir
-                    </Button>
-                  </div>
+                    return (
+                      <Card key={investment.id} className="hover:bg-muted/40 transition-colors border-border/50">
+                        <CardContent className="p-3 space-y-2.5">
+                          {/* ZONE 1: Asset Identity */}
+                          <div className="space-y-1">
+                            <p className="font-semibold text-sm text-foreground">{investment.name}</p>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <span>{TYPE_LABEL[investment.type]}</span>
+                              <span>•</span>
+                              <span>{formatDate(investment.date)}</span>
+                              <span>•</span>
+                              <span className="text-xs font-medium text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded">
+                                {valueType}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* ZONE 2: Main Data - aligned horizontal */}
+                          <div className="grid grid-cols-3 gap-2 pt-1">
+                            <div>
+                              <p className="text-xs text-muted-foreground mb-0.5">Investido</p>
+                              <p className="font-medium text-sm text-foreground">{formatCurrency(investment.amount)}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground mb-0.5">Estimado</p>
+                              <p className="font-medium text-sm text-foreground">{formatCurrency(breakdown.currentValue || investment.amount)}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground mb-0.5">Proventos</p>
+                              <p className="font-medium text-sm text-foreground">{formatCurrency(breakdown.proventos)}</p>
+                            </div>
+                          </div>
+
+                          {/* ZONE 3: Result & Actions */}
+                          <div className="flex items-center justify-between pt-1 border-t border-border/30">
+                            {breakdown.unrealizedVariation !== null && (
+                              <div>
+                                <p className="text-xs text-muted-foreground mb-0.5">Variação</p>
+                                <p className={`font-semibold text-sm ${breakdown.unrealizedVariation >= 0 ? "text-lime-500" : "text-red-500"}`}>
+                                  {breakdown.unrealizedVariation >= 0 ? "+" : ""}{formatCurrency(breakdown.unrealizedVariation)}
+                                </p>
+                              </div>
+                            )}
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                                onClick={() => handleEdit(investment)}
+                              >
+                                Editar
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2 text-xs text-muted-foreground hover:text-destructive"
+                                onClick={() => handleDelete(investment.id)}
+                              >
+                                Remover
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">
-                Nenhum investimento cadastrado
-              </p>
-              <p className="text-sm text-muted-foreground mt-2">
-                Clique em "Novo Investimento" para adicionar
-              </p>
-            </div>
+              </>
+            )}
+
+            {investmentsGroupB.filter((inv) => calculateCurrentValue(inv) !== null).length > 0 && (
+              <>
+                <div className="px-1 py-2 pt-4">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    Ativos de Mercado
+                  </h3>
+                </div>
+                <div className="space-y-2">
+                  {investmentsGroupB
+                    .filter((inv) => calculateCurrentValue(inv) !== null)
+                    .map((investment) => {
+                      const breakdown = getReturnBreakdown(investment)
+                      const valueType = investment.currentValue !== undefined ? "Manual" : "Sem atualização"
+
+                      return (
+                        <Card key={investment.id} className="hover:bg-muted/40 transition-colors border-border/50">
+                          <CardContent className="p-3 space-y-2.5">
+                            {/* ZONE 1: Asset Identity */}
+                            <div className="space-y-1">
+                              <p className="font-semibold text-sm text-foreground">{investment.name}</p>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <span>{TYPE_LABEL[investment.type]}</span>
+                                <span>•</span>
+                                <span>{formatDate(investment.date)}</span>
+                                <span>•</span>
+                                <span className="text-xs font-medium text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded">
+                                  {valueType}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* ZONE 2: Main Data - aligned horizontal */}
+                            <div className="grid grid-cols-3 gap-2 pt-1">
+                              <div>
+                                <p className="text-xs text-muted-foreground mb-0.5">Investido</p>
+                                <p className="font-medium text-sm text-foreground">{formatCurrency(investment.amount)}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-muted-foreground mb-0.5">Valor Atual</p>
+                                <p className="font-medium text-sm text-foreground">{formatCurrency(breakdown.currentValue || 0)}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-muted-foreground mb-0.5">Proventos</p>
+                                <p className="font-medium text-sm text-foreground">{formatCurrency(breakdown.proventos)}</p>
+                              </div>
+                            </div>
+
+                            {/* ZONE 3: Result & Actions */}
+                            <div className="flex items-center justify-between pt-1 border-t border-border/30">
+                              {breakdown.totalReturn !== null && (
+                                <div>
+                                  <p className="text-xs text-muted-foreground mb-0.5">Ganho Total</p>
+                                  <p className={`font-semibold text-sm ${breakdown.totalReturn >= 0 ? "text-lime-500" : "text-red-500"}`}>
+                                    {breakdown.totalReturn >= 0 ? "+" : ""}{formatCurrency(breakdown.totalReturn)}
+                                  </p>
+                                </div>
+                              )}
+                              <div className="flex gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                                  onClick={() => handleEdit(investment)}
+                                >
+                                  Editar
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-xs text-muted-foreground hover:text-destructive"
+                                  onClick={() => handleDelete(investment.id)}
+                                >
+                                  Remover
+                                </Button>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )
+                    })}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Pending Updates — Elegant and compact */}
+          {pendingCount > 0 && (
+            <Card className="border-border/50">
+              <CardContent className="p-3">
+                <p className="text-xs font-medium text-muted-foreground mb-2">
+                  {pendingCount} ativo{pendingCount !== 1 ? "s" : ""} pendente{pendingCount !== 1 ? "s" : ""} de atualização
+                </p>
+                <div className="space-y-1">
+                  {investmentsWithoutTrackedValue.map((investment) => (
+                    <div key={investment.id} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="text-muted-foreground truncate flex-1">{investment.name}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => handleEdit(investment)}
+                      >
+                        Atualizar
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           )}
-        </CardContent>
-      </Card>
+        </>
+      )}
 
       {/* Investment Modal */}
       <InvestmentModal

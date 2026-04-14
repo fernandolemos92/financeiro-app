@@ -4,6 +4,7 @@ import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Modal } from "@/components/ui/modal"
+import { CloseButton } from "@/components/ui/close-button"
 import { formatInputValue, parseInputValue } from "@/hooks/use-goals"
 
 interface GoalModalProps {
@@ -60,9 +61,12 @@ export function GoalModal({ isOpen, onClose, onAdd }: GoalModalProps) {
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       <div>
-        <h2 className="font-heading text-xl font-semibold text-foreground mb-4">
-          Nova Meta
-        </h2>
+        <div className="flex items-start justify-between mb-4">
+          <h2 className="font-heading text-xl font-semibold text-foreground">
+            Nova Meta
+          </h2>
+          <CloseButton onClick={onClose} />
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">

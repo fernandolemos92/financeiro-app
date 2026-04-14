@@ -7,42 +7,39 @@ import { Button } from "@/components/ui/button"
 import { Modal } from "@/components/ui/modal"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
-import { useTransactions, expenseCategories, incomeCategories, getSubcategories, formatCurrency, formatDate, Transaction, getTransactionTitle, getTransactionSubtitle, isInstallmentTransaction, getInstallmentBadge, getRemainingInstallments, filterDisplayedTransactions, INCOME_TYPES, EXPENSE_NATURES, FREQUENCIES } from "@/hooks/use-transactions"
+import { PeriodFilter } from "@/components/period-filter"
+import { CloseButton } from "@/components/ui/close-button"
+import { useTransactions, expenseCategories, incomeCategories, getSubcategories, formatCurrency, formatDate, Transaction, getTransactionTitle, getTransactionSubtitle, isInstallmentTransaction, getInstallmentBadge, getRemainingInstallments, filterDisplayedTransactions, INCOME_TYPES, EXPENSE_NATURES, FREQUENCIES, type ExpenseNature, type Frequency, type IncomeType } from "@/hooks/use-transactions"
+import { formatMonetaryInput, parseMonetaryInput } from "@/lib/monetary-formatting"
+import { Trash, Pencil, House, ForkKnife, Car, Heart, GameController, Package, Wallet, Briefcase, Coins, ShoppingCart, ArrowCounterClockwise, Gift, TrendUp } from "phosphor-react"
 
-function TrashIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-    </svg>
-  )
+// Legacy aliases for backward compatibility in this file
+const formatInputValue = formatMonetaryInput
+const parseInputValue = parseMonetaryInput
+
+function getCategoryIcon(categoryId: string, size: number = 24) {
+  const iconMap: Record<string, React.ReactNode> = {
+    // Expense categories
+    moradia: <House size={size} weight="bold" />,
+    alimentacao: <ForkKnife size={size} weight="bold" />,
+    transporte: <Car size={size} weight="bold" />,
+    saude: <Heart size={size} weight="bold" />,
+    lazer: <GameController size={size} weight="bold" />,
+    outros: <Package size={size} weight="bold" />,
+    // Income categories
+    salario: <Wallet size={size} weight="bold" />,
+    freelance: <Briefcase size={size} weight="bold" />,
+    comissao: <Coins size={size} weight="bold" />,
+    venda: <ShoppingCart size={size} weight="bold" />,
+    reembolso: <ArrowCounterClockwise size={size} weight="bold" />,
+    presente: <Gift size={size} weight="bold" />,
+    rendimento: <TrendUp size={size} weight="bold" />,
+    aluguel_recebido: <House size={size} weight="bold" />,
+    outros_renda: <Package size={size} weight="bold" />,
+  }
+  return iconMap[categoryId] || <Package size={size} weight="bold" />
 }
 
-function PencilIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21.174 3.809a1.245 1.245 0 0 1 1.761 1.763l-9.2 9.2a2.4 2.4 0 0 1-.702.459l-3.036.911a.48.48 0 0 1-.616-.616l.911-3.036a2.4 2.4 0 0 1 .459-.702l9.2-9.2Z" />
-    </svg>
-  )
-}
-
-function formatInputValue(value: string): string {
-  const numbers = value.replace(/\D/g, "")
-  if (!numbers) return ""
-  return numbers.replace(/\B(?=(\d{3})+(?!\d))/g, ".")
-}
-
-function parseInputValue(value: string): string {
-  return value.replace(/\./g, "")
-}
-
-function EyeIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  )
-}
 
 function getAllCategories() {
   return [...expenseCategories, ...incomeCategories]
@@ -73,7 +70,7 @@ function DeleteConfirmModal({
         Excluir transação?
       </h3>
       <p className="text-sm text-muted-foreground mb-4">
-        Tem certeza que deseja excluir a transação "{transaction.description || category.name}"?
+        Tem certeza que deseja excluir a transação &quot;{transaction.description || category.name}&quot;?
         Esta ação não pode ser desfeita.
       </p>
       <div className="flex gap-3">
@@ -88,20 +85,69 @@ function DeleteConfirmModal({
   )
 }
 
+function SeriesDeletionConfirmModal({
+  isOpen,
+  installmentTotal,
+  onConfirm,
+  onCancel,
+}: {
+  isOpen: boolean
+  installmentTotal: number
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  return (
+    <Modal isOpen={isOpen} onClose={onCancel}>
+      <div className="space-y-4">
+        <div className="flex items-start justify-between">
+          <h2 className="font-heading text-xl font-semibold text-foreground">
+            Excluir série parcelada?
+          </h2>
+          <CloseButton onClick={onCancel} className="" />
+        </div>
+
+        <p className="text-sm text-foreground">
+          Você está prestes a excluir toda a série de <strong>{installmentTotal} parcelas</strong>.
+          Esta ação não pode ser desfeita e removerá todas as parcelas desta compra.
+        </p>
+
+        <div className="flex gap-3 pt-4">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            className="flex-1"
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={onConfirm}
+            className="flex-1"
+          >
+            Confirmar exclusão
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 function TransactionDetailModal({
   isOpen,
   transaction,
-  onEdit,
   onDelete,
   onClose,
   onSave,
+  onOpenSeriesDeletionConfirm,
 }: {
   isOpen: boolean
   transaction: Transaction | null
-  onEdit: (transaction: Transaction) => void
   onDelete: (transaction: Transaction) => void
   onClose: () => void
   onSave: (id: string, updates: Partial<Transaction>) => Promise<void>
+  onOpenSeriesDeletionConfirm?: (installmentTotal: number, groupId: string) => void
 }) {
   const [isEditing, setIsEditing] = React.useState(false)
   const [editValue, setEditValue] = React.useState("")
@@ -140,15 +186,15 @@ function TransactionDetailModal({
     const newAmount = parseFloat(rawValue.replace(",", "."))
     if (newAmount > 0) {
       try {
-        const updatePayload: any = {
+        const updatePayload: Partial<Transaction> = {
           amount: newAmount,
           description: editDescription || undefined,
           date: editDate,
           category: editCategory,
           subcategory: editSubcategory || undefined,
-          expense_nature: isExpense ? editExpenseNature as any : undefined,
-          frequency: isExpense ? editFrequency as any : undefined,
-          income_type: !isExpense ? editIncomeType as any : undefined,
+          expense_nature: isExpense ? (editExpenseNature as ExpenseNature) : undefined,
+          frequency: isExpense ? (editFrequency as Frequency) : undefined,
+          income_type: !isExpense ? (editIncomeType as IncomeType) : undefined,
           // Note: installment fields are immutable in this version
         }
 
@@ -158,20 +204,6 @@ function TransactionDetailModal({
         // error already toasted in handleDetailSave
       }
     }
-  }
-
-  const handleCancelEdit = () => {
-    if (!transaction) return
-    setEditValue(formatInputValue(transaction.amount.toString()))
-    setEditDescription(transaction.description || "")
-    setEditDate(transaction.date)
-    setEditCategory(transaction.category)
-    setEditSubcategory(transaction.subcategory || "")
-    setEditExpenseNature(transaction.expense_nature || "cost_of_living")
-    setEditFrequency(transaction.frequency || "monthly")
-    setEditIncomeType(transaction.income_type || "fixed")
-    setIsEditing(false)
-    onClose()
   }
 
   const handleViewMode = () => {
@@ -199,8 +231,8 @@ function TransactionDetailModal({
       
       <div className="p-4 space-y-4">
         <div className="flex items-center gap-3">
-          <div className="h-12 w-12 rounded-full bg-secondary/20 flex items-center justify-center">
-            <span className="text-2xl">{category.icon}</span>
+          <div className="h-12 w-12 rounded-full bg-secondary/20 flex items-center justify-center text-secondary">
+            {getCategoryIcon(category.id, 28)}
           </div>
           <div>
             <p className="font-medium text-foreground text-lg">
@@ -295,7 +327,7 @@ function TransactionDetailModal({
               <div>
                 <p className="text-xs text-muted-foreground">Natureza</p>
                 {isEditing ? (
-                  <Select value={editExpenseNature} onValueChange={(value) => setEditExpenseNature((value || editExpenseNature) as any)}>
+                  <Select value={editExpenseNature} onValueChange={(value) => setEditExpenseNature((value || editExpenseNature) as ExpenseNature)}>
                     <SelectTrigger className="w-full">
                       <SelectValue>
                         {EXPENSE_NATURES.find(t => t.value === editExpenseNature)?.label || editExpenseNature}
@@ -316,7 +348,7 @@ function TransactionDetailModal({
               <div>
                 <p className="text-xs text-muted-foreground">Frequência</p>
                 {isEditing ? (
-                  <Select value={editFrequency} onValueChange={(value) => setEditFrequency((value || editFrequency) as any)}>
+                  <Select value={editFrequency} onValueChange={(value) => setEditFrequency((value || editFrequency) as Frequency)}>
                     <SelectTrigger className="w-full">
                       <SelectValue>
                         {FREQUENCIES.find(t => t.value === editFrequency)?.label || editFrequency}
@@ -340,7 +372,7 @@ function TransactionDetailModal({
             <div>
               <p className="text-xs text-muted-foreground">Tipo de Renda</p>
               {isEditing ? (
-                <Select value={editIncomeType} onValueChange={(value) => setEditIncomeType((value || editIncomeType) as any)}>
+                <Select value={editIncomeType} onValueChange={(value) => setEditIncomeType((value || editIncomeType) as IncomeType)}>
                   <SelectTrigger className="w-full">
                     <SelectValue>
                       {INCOME_TYPES.find(t => t.value === editIncomeType)?.label || editIncomeType}
@@ -363,18 +395,40 @@ function TransactionDetailModal({
             <>
               <div className="col-span-2">
                 <p className="text-xs text-muted-foreground mb-2">
-                  ℹ️ Série de Parcelamento
+                  🔗 Compra Parcelada
                 </p>
-                <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
-                  <p className="text-sm text-foreground">
-                    <span className="font-medium">Parcela {transaction.installment_number} de {transaction.installment_total}</span>
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Valor total da compra: R$ {transaction.purchase_total_amount?.toFixed(2).replace(".", ",")}
-                  </p>
+                <div className="p-3 rounded-lg bg-primary/10 border border-primary/20 space-y-2">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Parcela</p>
+                    <p className="text-sm font-medium text-foreground">
+                      {transaction.installment_number} de {transaction.installment_total}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Valor desta parcela</p>
+                    <p className="text-sm font-medium text-foreground">
+                      {formatCurrency(transaction.amount)}
+                    </p>
+                  </div>
+                  {transaction.purchase_total_amount && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Valor total da compra</p>
+                      <p className="text-sm font-medium text-foreground">
+                        {formatCurrency(transaction.purchase_total_amount)}
+                      </p>
+                    </div>
+                  )}
+                  {transaction.installment_total && transaction.installment_number && transaction.installment_total > transaction.installment_number && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Restam</p>
+                      <p className="text-sm font-medium text-foreground">
+                        {transaction.installment_total - transaction.installment_number} parcela{transaction.installment_total - transaction.installment_number !== 1 ? 's' : ''}
+                      </p>
+                    </div>
+                  )}
                   {!isEditing && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Edição individual apenas. Para gerenciar a série, veja todas as parcelas.
+                    <p className="text-xs text-muted-foreground mt-2 border-t border-primary/20 pt-2">
+                      Edição individual. Para gerenciar a série, veja todas as parcelas.
                     </p>
                   )}
                 </div>
@@ -399,40 +453,126 @@ function TransactionDetailModal({
         </div>
       </div>
 
-      <div className="p-4 border-t border-border flex gap-3">
-        {isEditing ? (
-          <>
-            <Button variant="outline" className="flex-1" onClick={handleViewMode}>
-              Cancelar
-            </Button>
-            <Button className="flex-1" onClick={handleSave}>
-              Salvar
-            </Button>
-          </>
-        ) : (
-          <>
-            <Button className="flex-1" onClick={() => setIsEditing(true)}>
-              <PencilIcon className="h-4 w-4 mr-2" />
-              Editar
-            </Button>
-            <Button variant="destructive" className="flex-1" onClick={() => onDelete(transaction)}>
-              <TrashIcon className="h-4 w-4 mr-2" />
-              Excluir
-            </Button>
-          </>
-        )}
+      <div className="border-t border-border">
+        <div className="p-4 space-y-3">
+          {isEditing ? (
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={handleViewMode}>
+                Cancelar
+              </Button>
+              <Button className="flex-1" onClick={handleSave}>
+                Salvar
+              </Button>
+            </div>
+          ) : (
+            <>
+              {/* Actions for this installment */}
+              <div>
+                <p className="text-xs text-muted-foreground mb-2">DESTA PARCELA</p>
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1 text-sm" onClick={() => setIsEditing(true)}>
+                    <Pencil size={14} className="mr-1.5" />
+                    Editar
+                  </Button>
+                  <Button variant="outline" className="flex-1 text-sm text-destructive hover:text-destructive" onClick={() => onDelete(transaction)}>
+                    <Trash size={14} className="mr-1.5" />
+                    Excluir
+                  </Button>
+                </div>
+              </div>
+
+              {/* Series-level actions for parcelado */}
+              {transaction.installment_group_id && (
+                <div className="pt-2 border-t border-border">
+                  <p className="text-xs text-muted-foreground mb-2">DA SÉRIE INTEIRA</p>
+                  <Button
+                    variant="outline"
+                    className="w-full text-sm text-destructive hover:text-destructive"
+                    onClick={() => {
+                      if (onOpenSeriesDeletionConfirm && transaction.installment_total && transaction.installment_group_id) {
+                        onOpenSeriesDeletionConfirm(transaction.installment_total, transaction.installment_group_id)
+                      }
+                    }}
+                  >
+                    <Trash size={14} className="mr-1.5" />
+                    Excluir todas as {transaction.installment_total} parcelas
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </Modal>
   )
 }
 
+type Period = "day" | "week" | "month" | "all"
+
+const periods: { value: Period; label: string }[] = [
+  { value: "day", label: "Dia" },
+  { value: "week", label: "Semana" },
+  { value: "month", label: "Mês" },
+  { value: "all", label: "Todas" },
+]
+
+function getPeriodDates(period: Period): { start: Date; end: Date } {
+  const now = new Date()
+  const start = new Date(now)
+  const end = new Date(now)
+
+  if (period === "day") {
+    // Today
+    start.setHours(0, 0, 0, 0)
+    end.setHours(23, 59, 59, 999)
+  } else if (period === "week") {
+    // This week (Sunday to Saturday)
+    const dayOfWeek = start.getDay()
+    const diff = start.getDate() - dayOfWeek
+    start.setDate(diff)
+    start.setHours(0, 0, 0, 0)
+    end.setDate(diff + 6)
+    end.setHours(23, 59, 59, 999)
+  } else if (period === "month") {
+    // This month
+    start.setDate(1)
+    start.setHours(0, 0, 0, 0)
+    end.setMonth(now.getMonth() + 1)
+    end.setDate(0)
+    end.setHours(23, 59, 59, 999)
+  }
+
+  return { start, end }
+}
+
+function formatDateForInput(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
 export default function TransactionsPage() {
-  const { transactions, isLoaded, deleteTransaction, updateTransaction } = useTransactions()
-  
+  const { transactions, isLoaded, deleteTransaction, updateTransaction, deleteInstallmentSeries } = useTransactions()
+
+  const [period, setPeriod] = React.useState<Period>("month")
   const [searchQuery, setSearchQuery] = React.useState("")
   const [selectedCategory, setSelectedCategory] = React.useState<string>("all")
   const [startDate, setStartDate] = React.useState("")
   const [endDate, setEndDate] = React.useState("")
+
+  // Update dates when period changes
+  React.useEffect(() => {
+    if (period === "all") {
+      // Show all transactions, no date filter
+      setStartDate("")
+      setEndDate("")
+    } else {
+      const { start, end } = getPeriodDates(period)
+      setStartDate(formatDateForInput(start))
+      setEndDate(formatDateForInput(end))
+    }
+  }, [period])
   
   const [deleteModal, setDeleteModal] = React.useState<{
     isOpen: boolean
@@ -443,6 +583,16 @@ export default function TransactionsPage() {
     isOpen: boolean
     transaction: Transaction | null
   }>({ isOpen: false, transaction: null })
+
+  const [seriesDeletionConfirm, setSeriesDeletionConfirm] = React.useState<{
+    isOpen: boolean
+    installmentTotal: number
+    groupId: string | null
+  }>({ isOpen: false, installmentTotal: 0, groupId: null })
+
+  // Get nature filter from URL if present
+  const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
+  const filterNature = searchParams.get('nature')
 
   const filteredTransactions = React.useMemo(() => {
     if (!isLoaded) return []
@@ -498,14 +648,6 @@ export default function TransactionsPage() {
     setDetailModal({ isOpen: true, transaction })
   }
 
-  const handleDetailEdit = (transaction: Transaction) => {
-    setDetailModal({ isOpen: true, transaction })
-  }
-
-  const handleStartEdit = () => {
-    // O modal já está aberto com a transação, o modo de edição será ativado internamente
-  }
-
   const handleDetailDelete = (transaction: Transaction) => {
     deleteTransaction(transaction.id)
     setDetailModal({ isOpen: false, transaction: null })
@@ -526,11 +668,31 @@ export default function TransactionsPage() {
     }
   }
 
+  const handleOpenSeriesDeletionConfirm = (installmentTotal: number, groupId: string) => {
+    setSeriesDeletionConfirm({ isOpen: true, installmentTotal, groupId })
+  }
+
+  const handleConfirmSeriesDeletion = async () => {
+    if (seriesDeletionConfirm.groupId) {
+      try {
+        const result = await deleteInstallmentSeries(seriesDeletionConfirm.groupId)
+        toast.success(`Série parcelada excluída\n${result.deletedCount} parcelas removidas`)
+        setSeriesDeletionConfirm({ isOpen: false, installmentTotal: 0, groupId: null })
+        setDetailModal({ isOpen: false, transaction: null })
+      } catch {
+        toast.error("Erro ao deletar série parcelada")
+      }
+    }
+  }
+
+  const handleCancelSeriesDeletion = () => {
+    setSeriesDeletionConfirm({ isOpen: false, installmentTotal: 0, groupId: null })
+  }
+
   const clearFilters = () => {
     setSearchQuery("")
     setSelectedCategory("all")
-    setStartDate("")
-    setEndDate("")
+    setPeriod("month")
   }
 
   if (!isLoaded) {
@@ -548,7 +710,12 @@ export default function TransactionsPage() {
     <div className="space-y-8">
       <div>
         <h1 className="font-heading text-3xl font-bold text-foreground">Transações</h1>
-        <p className="mt-1 text-muted-foreground">Histórico completo de transações</p>
+        <p className="mt-1 text-muted-foreground">
+          {filterNature
+            ? `Mostrando todas as transações de ${filterNature === 'debt' ? 'Dívidas' : filterNature === 'cost_of_living' ? 'Custo de Vida' : filterNature === 'pleasure' ? 'Prazer' : filterNature === 'application' ? 'Alocações' : 'Despesas'}`
+            : 'Histórico completo de transações'
+          }
+        </p>
       </div>
 
       {/* Search and Filters */}
@@ -563,6 +730,13 @@ export default function TransactionsPage() {
             />
           </div>
         </div>
+
+        {/* Period Filter */}
+        <PeriodFilter
+          periods={periods}
+          value={period}
+          onChange={(value) => setPeriod(value as Period)}
+        />
 
         <div className="flex flex-wrap gap-4">
           {/* Category Filter */}
@@ -604,7 +778,7 @@ export default function TransactionsPage() {
           </div>
 
           {/* Clear Filters */}
-          {(searchQuery || selectedCategory !== "all" || startDate || endDate) && (
+          {(searchQuery || selectedCategory !== "all" || period !== "month") && (
             <Button variant="ghost" size="sm" onClick={clearFilters}>
               Limpar filtros
             </Button>
@@ -638,14 +812,46 @@ export default function TransactionsPage() {
               const title = getTransactionTitle(transaction)
               const baseSubtitle = getTransactionSubtitle(transaction)
 
-              // Add installment info to subtitle if applicable
+              // Check if transaction is parcelado
               const isInstallment = isInstallmentTransaction(transaction)
               const installmentBadge = isInstallment ? getInstallmentBadge(transaction) : null
               const remainingInstallments = isInstallment ? getRemainingInstallments(transaction) : 0
 
-              const subtitle = isInstallment && installmentBadge
-                ? `Compra parcelada • ${installmentBadge}`
-                : baseSubtitle
+              // Get nature label if expense
+              const getNatureLabel = () => {
+                if (!isExpense || !transaction.expense_nature) return null
+                const natures: Record<string, string> = {
+                  'debt': 'Dívidas',
+                  'cost_of_living': 'Custo de Vida',
+                  'pleasure': 'Prazer',
+                  'application': 'Alocações'
+                }
+                return natures[transaction.expense_nature] || transaction.expense_nature
+              }
+
+              const natureLabel = getNatureLabel()
+
+              // Build subtitle: include nature, parcelamento info, and category/subcategory
+              const buildSubtitle = () => {
+                const parts = []
+
+                // Add nature if expense
+                if (natureLabel) {
+                  parts.push(natureLabel)
+                }
+
+                // Add parcelado info if applicable
+                if (isInstallment && installmentBadge) {
+                  parts.push(`Parcela ${installmentBadge}`)
+                } else {
+                  // Add category/subcategory only if not parcelado (parcelado already shows in parts)
+                  parts.push(baseSubtitle)
+                }
+
+                return parts.join(' · ')
+              }
+
+              const subtitle = buildSubtitle()
 
               return (
                 <div
@@ -654,8 +860,8 @@ export default function TransactionsPage() {
                   className="flex items-center justify-between py-4 border-b border-border/50 last:border-0 group cursor-pointer hover:bg-muted/30 transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-secondary/20 flex items-center justify-center flex-shrink-0">
-                      <span className="text-lg">{category.icon}</span>
+                    <div className="h-10 w-10 rounded-full bg-secondary/20 flex items-center justify-center flex-shrink-0 text-secondary">
+                      {getCategoryIcon(category.id, 20)}
                     </div>
                     <div className="min-w-0">
                       <p className="font-medium text-foreground truncate">
@@ -690,7 +896,7 @@ export default function TransactionsPage() {
                       className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       aria-label="Excluir transação"
                     >
-                      <TrashIcon className="h-4 w-4" />
+                      <Trash size={16} />
                     </button>
                   </div>
                 </div>
@@ -703,10 +909,10 @@ export default function TransactionsPage() {
       <TransactionDetailModal
         isOpen={detailModal.isOpen}
         transaction={detailModal.transaction}
-        onEdit={handleDetailEdit}
         onDelete={handleDetailDelete}
         onClose={handleDetailClose}
         onSave={handleDetailSave}
+        onOpenSeriesDeletionConfirm={handleOpenSeriesDeletionConfirm}
       />
 
       <DeleteConfirmModal
@@ -714,6 +920,13 @@ export default function TransactionsPage() {
         transaction={deleteModal.transaction}
         onConfirm={handleConfirmDelete}
         onCancel={handleCancelDelete}
+      />
+
+      <SeriesDeletionConfirmModal
+        isOpen={seriesDeletionConfirm.isOpen}
+        installmentTotal={seriesDeletionConfirm.installmentTotal}
+        onConfirm={handleConfirmSeriesDeletion}
+        onCancel={handleCancelSeriesDeletion}
       />
     </div>
   )

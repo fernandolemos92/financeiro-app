@@ -7,95 +7,16 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { LogoutButton } from "@/components/logout-button"
 import { useTransactionModal } from "@/contexts/transaction-modal-context"
+import { Plus, X as XIcon, List, House, CurrencyDollar, Target, Crosshair, ChartLine, Bank } from "phosphor-react"
 
 const navigation = [
-  { name: "Dashboard", href: "/dashboard", icon: HomeIcon },
-  { name: "Transações", href: "/transactions", icon: TransactionsIcon },
-  { name: "Metas", href: "/goals", icon: GoalsIcon },
-  { name: "Planejado vs Realizado", href: "/planned-vs-actual", icon: PlannedVsActualIcon },
-  { name: "Insights", href: "/insights", icon: InsightsIcon },
-  { name: "Investimentos", href: "/investments", icon: InvestmentsIcon },
+  { name: "Dashboard", href: "/dashboard", icon: House },
+  { name: "Transações", href: "/transactions", icon: CurrencyDollar },
+  { name: "Metas", href: "/goals", icon: Target },
+  { name: "Planejado vs Realizado", href: "/planned-vs-actual", icon: Crosshair },
+  { name: "Insights", href: "/insights", icon: ChartLine },
+  { name: "Investimentos", href: "/investments", icon: Bank },
 ]
-
-function HomeIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" />
-      <path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-    </svg>
-  )
-}
-
-function TransactionsIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-    </svg>
-  )
-}
-
-function GoalsIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" />
-      <circle cx="12" cy="12" r="6" />
-      <circle cx="12" cy="12" r="2" />
-    </svg>
-  )
-}
-
-function PlannedVsActualIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 4h6v6H4z" />
-      <path d="M14 4h6v6h-6z" />
-      <path d="M4 14h6v6H4z" />
-      <path d="M14 14h6v6h-6z" />
-      <path d="M10 7h4M7 17h10" />
-    </svg>
-  )
-}
-
-function InsightsIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 3v18h18" />
-      <path d="m19 9-5 5-4-4-3 3" />
-    </svg>
-  )
-}
-
-function InvestmentsIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-    </svg>
-  )
-}
-
-function PlusIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M5 12h14M12 5v14" />
-    </svg>
-  )
-}
-
-function MenuIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 6h16M4 12h16M4 18h16" />
-    </svg>
-  )
-}
-
-function CloseIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M18 6 6 18M6 6l12 12" />
-    </svg>
-  )
-}
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -133,15 +54,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             aria-expanded={isMobileMenuOpen}
           >
             {isMobileMenuOpen ? (
-              <CloseIcon className="h-6 w-6" />
+              <XIcon size={24} weight="bold" />
             ) : (
-              <MenuIcon className="h-6 w-6" />
+              <List size={24} weight="bold" />
             )}
           </button>
           <span className="font-heading text-xl font-semibold text-primary ml-2">Financeiro</span>
         </div>
         <Button size="sm" className="gap-1.5" onClick={openModal}>
-          <PlusIcon className="h-4 w-4" />
+          <Plus size={16} weight="bold" />
           <span className="text-xs">Nova</span>
         </Button>
       </header>
@@ -154,7 +75,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <div className="p-4">
           <Button className="w-full gap-2 min-h-[44px]" size="lg" onClick={openModal}>
-            <PlusIcon className="h-5 w-5" />
+            <Plus size={20} weight="bold" />
             Nova Transação
           </Button>
         </div>
@@ -174,7 +95,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 )}
                 aria-current={isActive ? "page" : undefined}
               >
-                <item.icon className="h-5 w-5" />
+                <item.icon size={20} weight="bold" />
                 {item.name}
               </Link>
             )
@@ -222,7 +143,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 )}
                 aria-current={isActive ? "page" : undefined}
               >
-                <item.icon className="h-5 w-5" />
+                <item.icon size={20} weight="bold" />
                 {item.name}
               </Link>
             )
@@ -231,7 +152,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <div className="absolute bottom-4 left-4 right-4 space-y-2">
           <Button className="w-full gap-2 min-h-[44px]" size="lg" onClick={openModal}>
-            <PlusIcon className="h-5 w-5" />
+            <Plus size={20} weight="bold" />
             Nova Transação
           </Button>
           <LogoutButton />

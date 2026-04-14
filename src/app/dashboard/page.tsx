@@ -11,7 +11,7 @@ import { Modal, ModalLarge } from "@/components/ui/modal"
 import { MetricCard } from "@/components/ui/metric-card"
 import { Chips } from "@/components/chips"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { ArrowUpIcon, ArrowDownIcon, ChartLineUpIcon, InfoIcon } from "@phosphor-icons/react"
+import { ArrowUpIcon, ArrowDownIcon, ChartLineUpIcon, InfoIcon, ArrowRight, Money, House, Confetti, TrendUp } from "@phosphor-icons/react"
 import { PeriodFilter } from "@/components/period-filter"
 import { BalanceHero } from "@/components/balance-hero"
 import { useTransactions, calculateFinancialSummary, calculateIncomeBreakdown, calculateExpenseBreakdown, formatCurrency, formatDate, FinancialSummary, IncomeBreakdown, ExpenseBreakdown, categories } from "@/hooks/use-transactions"
@@ -25,6 +25,21 @@ const periods: { value: Period; label: string }[] = [
   { value: "week", label: "Semana" },
   { value: "month", label: "Mês" },
 ]
+
+function getNatureIcon(nature: string, size: number = 24) {
+  switch (nature) {
+    case "debt":
+      return <Money size={size} weight="bold" />
+    case "cost_of_living":
+      return <House size={size} weight="bold" />
+    case "pleasure":
+      return <Confetti size={size} weight="bold" />
+    case "application":
+      return <TrendUp size={size} weight="bold" />
+    default:
+      return <Money size={size} weight="bold" />
+  }
+}
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -133,7 +148,7 @@ export default function DashboardPage() {
     
     const periodTransactions = transactions.filter((t) => {
       const date = new Date(t.date)
-      return date >= start && date <= end && t.type === "expense" && t.planning_status !== "planned"
+      return date >= start && date <= end && t.type === "expense"
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
     const result: Record<string, { 
@@ -169,7 +184,7 @@ export default function DashboardPage() {
     
     const periodTransactions = transactions.filter((t) => {
       const date = new Date(t.date)
-      return date >= start && date <= end && t.type === "expense" && t.planning_status !== "planned"
+      return date >= start && date <= end && t.type === "expense"
     })
 
     const details: Record<string, { subcategories: Record<string, number>; total: number; transactionCount: number }> = {}
@@ -284,7 +299,7 @@ export default function DashboardPage() {
 
     const lastMonthTransactions = transactions.filter(t => {
       const transDate = new Date(t.date)
-      return transDate >= lastMonthStart && transDate <= lastMonthEnd && t.planning_status !== "planned"
+      return transDate >= lastMonthStart && transDate <= lastMonthEnd
     })
 
     if (lastMonthTransactions.length === 0) return null
@@ -324,48 +339,40 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-heading text-3xl font-bold text-foreground">Caixa do mês</h1>
-          <p className="mt-1 text-muted-foreground">Fluxo de receitas e despesas</p>
+          <p className="mt-1 text-muted-foreground">Orçamento, gasto e margem disponível</p>
         </div>
       </div>
 
-      {/* Period Filter */}
-      <PeriodFilter
-        periods={periods}
-        value={period}
-        onChange={(value) => setPeriod(value as Period)}
-      />
-
-      {/* Temporal Context */}
-      {getTemporalContext() && (
-        <div className="flex items-center gap-2 text-sm">
-          {getTemporalContext()?.color === "text-red-400" ? (
-            <ArrowDownIcon className="h-4 w-4 text-red-400" weight="bold" />
-          ) : (
-            <ArrowUpIcon className={getTemporalContext()?.color} weight="bold" />
-          )}
-          <span className={getTemporalContext()?.color}>{getTemporalContext()?.text}</span>
-        </div>
-      )}
-
-      {/* Income Breakdown - Chips */}
-      <Chips
-        items={[
-          { label: "R$ Fixa:", value: formatCurrency(incomeBreakdown.fixed), color: "neutral" },
-          { label: "R$ Variável:", value: formatCurrency(incomeBreakdown.variable), color: "neutral" },
-          { label: "R$ Oscilante:", value: formatCurrency(incomeBreakdown.oscillating), color: "neutral" },
-        ]}
-      />
+      {/* Period Filter - Reduzido visualmente */}
+      <div className="opacity-70">
+        <PeriodFilter
+          periods={periods}
+          value={period}
+          onChange={(value) => setPeriod(value as Period)}
+        />
+      </div>
 
       {/* Balance Hero - Financial Planning Model */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
-        <BalanceHero summary={financialSummary} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <BalanceHero summary={financialSummary} plannedVsActual={plannedVsActual} />
 
-        {/* Active Goals Progress */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Metas ativas</CardTitle>
+        {/* Active Goals Progress - Premium Support Card */}
+        <Card className="border-border/60 flex flex-col">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-semibold">Metas em progresso</CardTitle>
+              {goals.filter(g => !g.completedAt).length > 0 && (
+                <button
+                  onClick={() => router.push('/goals')}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <span>Ver todas</span>
+                  <ArrowRight size={14} />
+                </button>
+              )}
+            </div>
           </CardHeader>
-          <CardContent className="space-y-1">
+          <CardContent className="space-y-3 flex-1 flex flex-col">
             {goals.filter(g => !g.completedAt).length > 0 ? (
               (() => {
                 const activeGoals = goals.filter(g => !g.completedAt).slice(0, 5)
@@ -374,23 +381,23 @@ export default function DashboardPage() {
                   const progress = goal.targetAmount > 0 ? Math.round((goal.currentAmount / goal.targetAmount) * 100) : 0
                   const remaining = Math.max(goal.targetAmount - goal.currentAmount, 0)
                   return (
-                    <div
+                    <button
                       key={goal.id}
-                      role="button"
-                      tabIndex={0}
                       onClick={() => setSelectedGoal(goal.id)}
                       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setSelectedGoal(goal.id)}
-                      className="w-full text-left space-y-2 p-2 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg"
+                      className="w-full text-left space-y-3 p-3.5 rounded-lg bg-card border border-border hover:border-border/80 hover:bg-muted/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
-                      <div className="flex justify-between text-sm">
-                        <span className="text-foreground">{goal.name}</span>
-                        <span className="text-muted-foreground">{formatCurrency(goal.currentAmount)} / {formatCurrency(goal.targetAmount)}</span>
-                      </div>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div className="h-full bg-muted-foreground/40 rounded-full" style={{ width: `${progress}%` }} />
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-semibold text-foreground">{goal.name}</span>
+                          <span className="text-xs font-semibold text-secondary">{progress}%</span>
+                        </div>
+                        <div className="h-2.5 bg-muted rounded-full overflow-hidden">
+                          <div className="h-full bg-secondary/80 rounded-full" style={{ width: `${progress}%` }} />
+                        </div>
                       </div>
                       {isSingleGoal && (
-                        <div className="flex justify-between text-xs pt-1">
+                        <div className="flex items-center justify-between text-xs">
                           {remaining > 0 && (
                             <span className="text-muted-foreground">
                               Faltam {formatCurrency(remaining)}
@@ -403,15 +410,19 @@ export default function DashboardPage() {
                           )}
                         </div>
                       )}
-                    </div>
+                    </button>
                   )
                 })
               })()
             ) : (
-              <div className="text-center py-4">
-                <p className="text-sm text-muted-foreground mb-3">Nenhuma meta ativa. Crie uma nova meta!</p>
-                <Button onClick={() => setIsGoalModalOpen(true)}>
-                  Criar meta
+              <div className="text-center py-6">
+                <p className="text-xs text-muted-foreground mb-4">Nenhuma poupança ativa</p>
+                <Button
+                  onClick={() => setIsGoalModalOpen(true)}
+                  size="sm"
+                  variant="outline"
+                >
+                  Criar poupança
                 </Button>
               </div>
             )}
@@ -420,9 +431,9 @@ export default function DashboardPage() {
       </div>
 
       {/* Expense Nature Cards - Rich Cards with Planned vs Actual */}
-      <div className="pt-4">
-        <h2 className="text-lg font-semibold text-foreground">Orçamento do mês</h2>
-        <p className="text-sm text-muted-foreground">Planejado vs Realizado por categoria</p>
+      <div className="pt-6 mt-6 border-t border-border/30">
+        <h2 className="text-sm font-semibold text-foreground">Onde o orçamento está sendo pressionado</h2>
+        <p className="text-xs text-muted-foreground mt-1">Por categoria: planejado vs gasto</p>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {plannedVsActual.map((item) => {
@@ -430,113 +441,99 @@ export default function DashboardPage() {
               const percentOfTotal = totalOfExpenses > 0 ? (item.actual / totalOfExpenses) * 100 : 0
               const hasPlanned = item.planned > 0
               const details = natureDetails[item.nature]
-              
-              const configs: Record<string, { icon: string; barColor: string; textColor: string; accentColor: string }> = {
-                debt: { icon: "💸", barColor: "bg-muted-foreground/40", textColor: "text-foreground", accentColor: "text-foreground" },
-                cost_of_living: { icon: "🏠", barColor: "bg-muted-foreground/40", textColor: "text-foreground", accentColor: "text-foreground" },
-                pleasure: { icon: "🎉", barColor: "bg-muted-foreground/40", textColor: "text-foreground", accentColor: "text-foreground" },
-                application: { icon: "📈", barColor: "bg-muted-foreground/40", textColor: "text-foreground", accentColor: "text-foreground" },
+
+              const config: Record<string, { barColor: string; textColor: string; accentColor: string }> = {
+                debt: { barColor: "bg-muted-foreground/40", textColor: "text-foreground", accentColor: "text-foreground" },
+                cost_of_living: { barColor: "bg-muted-foreground/40", textColor: "text-foreground", accentColor: "text-foreground" },
+                pleasure: { barColor: "bg-muted-foreground/40", textColor: "text-foreground", accentColor: "text-foreground" },
+                application: { barColor: "bg-muted-foreground/40", textColor: "text-foreground", accentColor: "text-foreground" },
               }
-              const config = configs[item.nature] || configs.cost_of_living
-              
+              const configItem = config[item.nature] || config.cost_of_living
+
               return (
                 <button
                   key={item.nature}
                   onClick={() => setSelectedNature(item.nature)}
-                  className="p-5 rounded-xl bg-card border border-border text-left hover:border-muted-foreground/50 transition-colors"
+                  className="p-4 rounded-lg bg-card border border-border text-left hover:border-border/80 hover:bg-muted/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  {/* Label + Icon */}
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">{config.icon}</span>
-                      <span className="text-sm font-medium text-foreground">
-                        {item.natureLabel}
-                      </span>
+                  {/* Header: Icon + Label */}
+                  <div className="flex items-center gap-2.5 mb-3">
+                    <div className="text-foreground/80">
+                      {getNatureIcon(item.nature, 20)}
+                    </div>
+                    <span className="text-xs font-semibold text-foreground uppercase tracking-wide">
+                      {item.natureLabel}
+                    </span>
+                  </div>
+
+                  {/* Valor principal */}
+                  <div className="mb-3">
+                    <div className={`font-heading text-2xl font-bold ${configItem.textColor}`}>
+                      {formatCurrency(item.actual)}
                     </div>
                     {hasPlanned && (
-                      <span className="text-xs text-muted-foreground">
-                        {item.percentage.toFixed(0)}% do planejado
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Valor */}
-                  <div className={`font-heading text-2xl font-bold ${config.textColor}`}>
-                    {formatCurrency(item.actual)}
-                  </div>
-
-                  {/* Planned vs Actual Visualization */}
-                  <div className={hasPlanned ? "mt-4 space-y-2" : "mt-12"}>
-                    {hasPlanned ? (
-                      <>
-                        <div className="flex justify-between text-xs text-muted-foreground">
-                          <span>Planejado</span>
-                          <span>{formatCurrency(item.planned)}</span>
-                        </div>
-                        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-muted-foreground/40 rounded-full"
-                            style={{ width: "100%" }}
-                          />
-                        </div>
-                        <div className="flex justify-between text-xs text-muted-foreground mt-2">
-                          <span>Realizado</span>
-                          <span className={`font-medium ${config.textColor}`}>{formatCurrency(item.actual)}</span>
-                        </div>
-                        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full rounded-full ${config.barColor}`}
-                            style={{ width: `${Math.min(item.percentage, 100)}%` }}
-                          />
-                        </div>
-                        <div className="flex justify-between text-xs mt-1">
-                          <span className="text-muted-foreground">Diferença</span>
-                          <span className={item.actual > item.planned ? "text-yellow-400" : "text-green-400"}>
-                            {item.actual > item.planned ? "+" : ""}{formatCurrency(item.actual - item.planned)}
-                          </span>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="text-xs text-muted-foreground">
-                          Sem meta definida
-                        </div>
-                        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full rounded-full ${config.barColor}`}
-                            style={{ width: `${percentOfTotal}%` }}
-                          />
-                        </div>
-                      </>
-                    )}
-                  </div>
-
-                  {/* Micro Insights */}
-                  <div className="mt-3 pt-3 border-t border-border/30">
-                    {hasPlanned ? (
-                      item.deviationState === "on_track" ? (
-                        <div className="text-xs text-green-400 flex items-center gap-1">
-                          <span>✓</span> Dentro do orçamento
-                        </div>
-                      ) : item.deviationState === "deviation_warning" ? (
-                        <div className="text-xs text-yellow-400 flex items-center gap-1">
-                          <span>⚠</span> {formatCurrency(item.actual - item.planned)} acima - atenção
-                        </div>
-                      ) : (
-                        <div className="text-xs text-red-400 flex items-center gap-1">
-                          <span>↑</span> {formatCurrency(item.actual - item.planned)} acima - revisão necessária
-                        </div>
-                      )
-                    ) : (
-                      <div className="text-xs text-muted-foreground">
-                        {percentOfTotal.toFixed(1)}% das despesas do mês
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        {item.actual > item.planned
+                          ? `${formatCurrency(item.actual - item.planned)} acima do planejado`
+                          : `${formatCurrency(item.planned - item.actual)} abaixo do planejado`
+                        }
                       </div>
                     )}
                   </div>
+
+                  {/* Progress Bar */}
+                  {hasPlanned && (
+                    <div className="space-y-2 pt-2 border-t border-border/40">
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${configItem.barColor}`}
+                          style={{ width: `${Math.min(item.percentage, 100)}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-muted-foreground">Meta: {formatCurrency(item.planned)}</span>
+                        <span className="text-xs font-semibold text-muted-foreground">{item.percentage.toFixed(0)}%</span>
+                      </div>
+                    </div>
+                  )}
                 </button>
               )
             })}
           </div>
+
+      {/* Support Section: Temporal Context + Composição de Receitas */}
+      <div className="space-y-4 border-t border-border/30 pt-4">
+        {/* Temporal Context */}
+        {getTemporalContext() && (
+          <div className="flex items-center gap-1.5 text-xs">
+            {getTemporalContext()?.color === "text-red-400" ? (
+              <ArrowDownIcon className="h-3 w-3 text-red-400/70" weight="bold" />
+            ) : (
+              <ArrowUpIcon className={`h-3 w-3 ${getTemporalContext()?.color}/70`} weight="bold" />
+            )}
+            <span className={`text-xs ${getTemporalContext()?.color}`}>{getTemporalContext()?.text}</span>
+          </div>
+        )}
+
+        {/* Income Breakdown - Mini Block with Title */}
+        <div className="space-y-2 max-w-md">
+          <p className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wide">Composição das receitas</p>
+          <div className="space-y-1.5 text-xs">
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">Fixa</span>
+              <span className="font-semibold text-foreground whitespace-nowrap">{formatCurrency(incomeBreakdown.fixed)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">Variável</span>
+              <span className="font-semibold text-foreground whitespace-nowrap">{formatCurrency(incomeBreakdown.variable)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">Oscilante</span>
+              <span className="font-semibold text-foreground whitespace-nowrap">{formatCurrency(incomeBreakdown.oscillating)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Nature Detail Modal */}
       {selectedNature && (() => {
@@ -547,24 +544,26 @@ export default function DashboardPage() {
         const totalOfExpenses = financialSummary.totalExpenses
         const percentOfTotal = totalOfExpenses > 0 ? (item.actual / totalOfExpenses) * 100 : 0
         const natureTransactions = transactionsByNature[selectedNature] || []
-        
-        const configs: Record<string, { icon: string; textColor: string; accentColor: string; barColor: string }> = {
-          debt: { icon: "💸", textColor: "text-red-400", accentColor: "bg-red-500/10 text-red-400", barColor: "bg-red-500" },
-          cost_of_living: { icon: "🏠", textColor: "text-orange-400", accentColor: "bg-orange-500/10 text-orange-400", barColor: "bg-orange-500" },
-          pleasure: { icon: "🎉", textColor: "text-purple-400", accentColor: "bg-purple-500/10 text-purple-400", barColor: "bg-purple-500" },
-          application: { icon: "📈", textColor: "text-blue-400", accentColor: "bg-blue-500/10 text-blue-400", barColor: "bg-blue-500" },
+
+        const configModal: Record<string, { textColor: string; accentColor: string; barColor: string }> = {
+          debt: { textColor: "text-red-400", accentColor: "bg-red-500/10 text-red-400", barColor: "bg-red-500" },
+          cost_of_living: { textColor: "text-orange-400", accentColor: "bg-orange-500/10 text-orange-400", barColor: "bg-orange-500" },
+          pleasure: { textColor: "text-purple-400", accentColor: "bg-purple-500/10 text-purple-400", barColor: "bg-purple-500" },
+          application: { textColor: "text-blue-400", accentColor: "bg-blue-500/10 text-blue-400", barColor: "bg-blue-500" },
         }
-        const config = configs[item.nature] || configs.cost_of_living
-        
+        const configModalItem = configModal[item.nature] || configModal.cost_of_living
+
         const periodLabel = period === "day" ? "dia" : period === "week" ? "semana" : "mês"
-        
+
         return (
           <ModalLarge isOpen={true} onClose={() => setSelectedNature(null)}>
             <div>
               <CloseButton onClick={() => setSelectedNature(null)} />
-              
+
               <div className="flex items-center gap-3 mb-6">
-                <span className="text-2xl">{config.icon}</span>
+                <div className="text-blue-400">
+                  {getNatureIcon(item.nature, 32)}
+                </div>
                 <div>
                   <h2 className="text-xl font-heading font-bold text-foreground">{item.natureLabel}</h2>
                   <p className="text-sm text-muted-foreground">Resumo do {periodLabel}</p>
@@ -587,7 +586,7 @@ export default function DashboardPage() {
                     </p>
                     <div className="flex items-center gap-2 mt-1">
                       <div className="flex-1 h-1.5 bg-background rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${config.barColor}`} style={{ width: `${Math.min((item.actual / item.planned) * 100, 100)}%` }} />
+                        <div className={`h-full rounded-full ${configModalItem.barColor}`} style={{ width: `${Math.min((item.actual / item.planned) * 100, 100)}%` }} />
                       </div>
                       <span className="text-xs text-muted-foreground">{item.percentage.toFixed(0)}%</span>
                     </div>
@@ -625,7 +624,7 @@ export default function DashboardPage() {
                                 <span className="text-sm font-medium text-foreground">{formatCurrency(value)}</span>
                               </div>
                               <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                                <div className={`h-full rounded-full ${config.barColor}`} style={{ width: `${catPercent}%` }} />
+                                <div className={`h-full rounded-full ${configModalItem.barColor}`} style={{ width: `${catPercent}%` }} />
                               </div>
                             </div>
                             <span className="text-xs text-muted-foreground w-10 text-right">{catPercent.toFixed(0)}%</span>
@@ -696,8 +695,10 @@ export default function DashboardPage() {
                     setSelectedNature(null)
                     router.push(`/transactions?nature=${item.nature}`)
                   }}
+                  className="flex items-center justify-center gap-1"
                 >
-                  Ver todas as transações →
+                  <span>Ver todas as transações</span>
+                  <ArrowRight size={14} />
                 </Button>
               </div>
             </div>
@@ -714,21 +715,21 @@ export default function DashboardPage() {
         const status = getGoalStatus(goal)
         
         return (
-          <Modal isOpen={true} onClose={() => setSelectedGoal(null)}>
+          <ModalLarge isOpen={true} onClose={() => setSelectedGoal(null)}>
             <div>
-              <CloseButton onClick={() => setSelectedGoal(null)} />
-              
-              <div className="space-y-6">
-              <div>
-                <h2 className="text-xl font-heading font-bold text-foreground">{goal.name}</h2>
-                <p className={`text-sm font-medium mt-1 ${status.color}`}>{status.label}</p>
-                {goal.deadline && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Prazo: {new Date(goal.deadline).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
-                  </p>
-                )}
+              {/* Header com X */}
+              <div className="flex items-start justify-between pb-4 mb-4 border-b border-border">
+                <h3 className="text-lg font-heading font-semibold text-foreground">Detalhes da Meta</h3>
+                <CloseButton onClick={() => setSelectedGoal(null)} className="" />
               </div>
-              
+
+              {/* Status */}
+              <p className={`text-sm font-medium mb-6 ${status.color}`}>{status.label}</p>
+
+              {/* Título da meta */}
+              <h2 className="text-2xl font-heading font-bold text-foreground mb-6">{goal.name}</h2>
+
+              <div className="space-y-6">
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Progresso</span>
@@ -804,7 +805,7 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
-          </Modal>
+          </ModalLarge>
         )
       })()}
 

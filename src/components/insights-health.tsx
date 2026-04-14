@@ -1,13 +1,14 @@
 "use client"
 
 import * as React from "react"
+import { CaretUp, CaretRight, Warning } from "phosphor-react"
 
-type HealthStatus = "bom" | "atencao" | "otimo"
+type HealthStatus = "bom" | "atencao" | "otimo" | "sem-dados"
 
 interface HealthInfo {
   label: string
-  icon: string
   color: string
+  badge: string
 }
 
 interface InsightsHealthCardProps {
@@ -15,51 +16,62 @@ interface InsightsHealthCardProps {
   info: HealthInfo
   justification: string
   factors: string[]
-  onOpen?: () => void
+  hasData: boolean
 }
 
-export function InsightsHealthCard({ 
-  status, 
-  info, 
-  justification, 
-  factors, 
-  onOpen 
+export function InsightsHealthCard({
+  status,
+  info,
+  justification,
+  factors,
+  hasData
 }: InsightsHealthCardProps) {
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && onOpen) {
-      onOpen()
-    }
+
+  if (!hasData) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-start gap-3">
+          <div className="text-2xl flex-shrink-0">−</div>
+          <div className="flex-1">
+            <p className="font-semibold text-foreground">Sem dados suficientes</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Adicione transações para gerar um diagnóstico confiável.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div 
-      role="button"
-      tabIndex={0}
-      onClick={onOpen}
-      onKeyDown={handleKeyDown}
-      className="flex items-center gap-6 cursor-pointer"
-    >
-      <div className="h-20 w-20 rounded-full bg-primary/20 flex items-center justify-center text-4xl">
-        {info.icon}
+    <div className="space-y-4">
+      <div className="flex items-start gap-3">
+        <div className="flex-shrink-0">
+          {status === "otimo" && <CaretUp size={24} className="text-lime-500" weight="bold" />}
+          {status === "bom" && <CaretRight size={24} className="text-foreground/80" weight="bold" />}
+          {status === "atencao" && <Warning size={24} className="text-orange-500" weight="bold" />}
+        </div>
+        <div className="flex-1">
+          <p className="font-semibold text-base text-foreground">
+            {info.label}
+          </p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {justification}
+          </p>
+        </div>
       </div>
-      <div className="flex-1">
-        <p className={`font-heading text-2xl font-semibold ${info.color}`}>
-          {info.label}
-        </p>
-        <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-          {justification}
-        </p>
-      </div>
-      {factors.length > 0 && factors[0] && (
-        <div className="mt-4 pt-4 border-t border-border/30 w-full">
-          <p className="text-xs text-muted-foreground mb-2">Fatores do estado:</p>
-          <div className="flex flex-wrap gap-2">
+
+      {factors.length > 0 && (
+        <div className="pt-3 border-t border-border/30">
+          <p className="text-xs font-medium text-muted-foreground mb-2">Fatores que sustentam:</p>
+          <ul className="space-y-1.5">
             {factors.map((factor, idx) => (
-              <span key={idx} className="text-xs bg-muted px-2 py-1 rounded text-muted-foreground">
-                {factor}
-              </span>
+              <li key={idx} className="flex items-start gap-2 text-xs text-muted-foreground">
+                <span className="w-1 h-1 rounded-full bg-foreground/40 mt-1.5 flex-shrink-0" />
+                <span>{factor}</span>
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
       )}
     </div>

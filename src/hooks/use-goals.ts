@@ -192,15 +192,8 @@ export function formatDate(dateString: string): string {
   }).format(date)
 }
 
-export function formatInputValue(value: string): string {
-  const numbers = value.replace(/\D/g, "")
-  if (!numbers) return ""
-  return numbers.replace(/\B(?=(\d{3})+(?!\d))/g, ".")
-}
-
-export function parseInputValue(value: string): string {
-  return value.replace(/\./g, "")
-}
+// Re-export from centralized monetary formatting module
+export { formatMonetaryInput as formatInputValue, parseMonetaryInput as parseInputValue } from "@/lib/monetary-formatting"
 
 export function calculateProgress(current: number, target: number): number {
   if (target <= 0) return 0
