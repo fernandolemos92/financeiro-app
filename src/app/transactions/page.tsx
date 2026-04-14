@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Modal } from "@/components/ui/modal"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
-import { useTransactions, expenseCategories, incomeCategories, getSubcategories, formatCurrency, formatDate, Transaction, getTransactionTitle, getTransactionSubtitle, INCOME_TYPES, EXPENSE_NATURES, FREQUENCIES } from "@/hooks/use-transactions"
+import { useTransactions, expenseCategories, incomeCategories, getSubcategories, formatCurrency, formatDate, Transaction, getTransactionTitle, getTransactionSubtitle, isInstallmentTransaction, getInstallmentBadge, getRemainingInstallments, filterDisplayedTransactions, INCOME_TYPES, EXPENSE_NATURES, FREQUENCIES } from "@/hooks/use-transactions"
 
 function TrashIcon({ className }: { className?: string }) {
   return (
@@ -140,7 +140,7 @@ function TransactionDetailModal({
     const newAmount = parseFloat(rawValue.replace(",", "."))
     if (newAmount > 0) {
       try {
-        await onSave(transaction.id, {
+        const updatePayload: any = {
           amount: newAmount,
           description: editDescription || undefined,
           date: editDate,
@@ -149,7 +149,10 @@ function TransactionDetailModal({
           expense_nature: isExpense ? editExpenseNature as any : undefined,
           frequency: isExpense ? editFrequency as any : undefined,
           income_type: !isExpense ? editIncomeType as any : undefined,
-        })
+          // Note: installment fields are immutable in this version
+        }
+
+        await onSave(transaction.id, updatePayload)
         onClose()
       } catch {
         // error already toasted in handleDetailSave
@@ -356,6 +359,28 @@ function TransactionDetailModal({
               )}
             </div>
           )}
+          {isExpense && transaction.installment_group_id && (
+            <>
+              <div className="col-span-2">
+                <p className="text-xs text-muted-foreground mb-2">
+                  ℹ️ Série de Parcelamento
+                </p>
+                <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
+                  <p className="text-sm text-foreground">
+                    <span className="font-medium">Parcela {transaction.installment_number} de {transaction.installment_total}</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Valor total da compra: R$ {transaction.purchase_total_amount?.toFixed(2).replace(".", ",")}
+                  </p>
+                  {!isEditing && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Edição individual apenas. Para gerenciar a série, veja todas as parcelas.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         <div>
@@ -422,7 +447,8 @@ export default function TransactionsPage() {
   const filteredTransactions = React.useMemo(() => {
     if (!isLoaded) return []
 
-    return transactions.filter((t) => {
+    // First apply basic filters
+    const basicFiltered = transactions.filter((t) => {
       // Search filter (case-insensitive)
       if (searchQuery) {
         const searchLower = searchQuery.toLowerCase()
@@ -442,6 +468,9 @@ export default function TransactionsPage() {
 
       return true
     })
+
+    // Then apply installment grouping to avoid duplicate parcelas
+    return filterDisplayedTransactions(basicFiltered, startDate || undefined, endDate || undefined)
   }, [transactions, isLoaded, searchQuery, selectedCategory, startDate, endDate])
 
   const handleDeleteClick = (transaction: Transaction) => {
@@ -607,8 +636,17 @@ export default function TransactionsPage() {
               const category = getCategoryById(transaction.category)
               const isExpense = transaction.type === "expense"
               const title = getTransactionTitle(transaction)
-              const subtitle = getTransactionSubtitle(transaction)
-              
+              const baseSubtitle = getTransactionSubtitle(transaction)
+
+              // Add installment info to subtitle if applicable
+              const isInstallment = isInstallmentTransaction(transaction)
+              const installmentBadge = isInstallment ? getInstallmentBadge(transaction) : null
+              const remainingInstallments = isInstallment ? getRemainingInstallments(transaction) : 0
+
+              const subtitle = isInstallment && installmentBadge
+                ? `Compra parcelada • ${installmentBadge}`
+                : baseSubtitle
+
               return (
                 <div
                   key={transaction.id}
@@ -623,12 +661,17 @@ export default function TransactionsPage() {
                       <p className="font-medium text-foreground truncate">
                         {title}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        {subtitle}
-                      </p>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>{subtitle}</span>
+                        {isInstallment && remainingInstallments > 0 && (
+                          <span className="inline-block px-2 py-0.5 rounded bg-primary/15 text-primary text-xs font-medium">
+                            Restam {remainingInstallments}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center gap-4">
                     <div className="text-right">
                       <p className={`font-amount font-medium ${isExpense ? "text-red-400" : "text-green-400"}`}>
@@ -638,7 +681,7 @@ export default function TransactionsPage() {
                         {formatDate(transaction.date)}
                       </p>
                     </div>
-                    
+
                     <button
                       onClick={(e) => {
                         e.stopPropagation()

@@ -200,3 +200,111 @@ export const PLANNING_STATUSES: { value: string; label: string }[] = [
   { value: "planned", label: "Planejado" },
   { value: "realized", label: "Realizado" },
 ]
+
+/**
+ * Check if a transaction is part of an installment series
+ */
+export function isInstallmentTransaction(transaction: Transaction): boolean {
+  return !!transaction.installment_group_id
+}
+
+/**
+ * Get the installment badge text (e.g., "3/12")
+ */
+export function getInstallmentBadge(transaction: Transaction): string | null {
+  if (!transaction.installment_number || !transaction.installment_total) {
+    return null
+  }
+  return `${transaction.installment_number}/${transaction.installment_total}`
+}
+
+/**
+ * Get remaining installments count
+ */
+export function getRemainingInstallments(transaction: Transaction): number {
+  if (!transaction.installment_number || !transaction.installment_total) {
+    return 0
+  }
+  return transaction.installment_total - transaction.installment_number
+}
+
+/**
+ * Group transactions by installment series ID
+ * Returns map of group_id -> transaction[]
+ */
+export function groupInstallmentTransactions(
+  transactions: Transaction[]
+): Map<string, Transaction[]> {
+  const groups = new Map<string, Transaction[]>()
+
+  for (const tx of transactions) {
+    if (tx.installment_group_id) {
+      const existing = groups.get(tx.installment_group_id) || []
+      groups.set(tx.installment_group_id, [...existing, tx])
+    }
+  }
+
+  return groups
+}
+
+/**
+ * Process transactions list to avoid duplicate installments:
+ * - Group installments by group_id
+ * - For each group, show only the "realized" installment
+ * - If no "realized", show the first one in the period
+ * - Non-installment transactions pass through unchanged
+ */
+export function filterDisplayedTransactions(
+  transactions: Transaction[],
+  dateRangeStart?: string,
+  dateRangeEnd?: string
+): Transaction[] {
+  const installmentGroups = groupInstallmentTransactions(transactions)
+  const result: Transaction[] = []
+  const processedGroupIds = new Set<string>()
+
+  // Process non-installment transactions and select representative from installment groups
+  for (const tx of transactions) {
+    // Non-installment transaction: include as-is
+    if (!tx.installment_group_id) {
+      result.push(tx)
+      continue
+    }
+
+    // Installment transaction: process group once
+    if (processedGroupIds.has(tx.installment_group_id)) {
+      continue
+    }
+
+    processedGroupIds.add(tx.installment_group_id)
+
+    const group = installmentGroups.get(tx.installment_group_id)
+    if (!group) continue
+
+    // Sort by installment number
+    const sorted = [...group].sort((a, b) => {
+      const aNum = a.installment_number || 0
+      const bNum = b.installment_number || 0
+      return aNum - bNum
+    })
+
+    // Prefer "realized" status, fallback to first in period
+    let selected = sorted.find(t => t.planning_status === "realized")
+
+    if (!selected && dateRangeStart && dateRangeEnd) {
+      // Find first installment within date range
+      selected = sorted.find(t => t.date >= dateRangeStart && t.date <= dateRangeEnd)
+    }
+
+    if (!selected) {
+      // Fallback to first installment in the series
+      selected = sorted[0]
+    }
+
+    if (selected) {
+      result.push(selected)
+    }
+  }
+
+  return result
+}

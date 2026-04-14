@@ -18,6 +18,10 @@ export interface Transaction {
   expense_nature?: ExpenseNature
   frequency?: Frequency
   planning_status?: PlanningStatus
+  installment_total?: number
+  installment_number?: number
+  purchase_total_amount?: number
+  installment_group_id?: string
 }
 
 export interface Category {
@@ -44,6 +48,9 @@ export interface FinancialSummary {
   balanceState: BalanceState
   isAllAllocated: boolean
   monthlyProvisionedTotal: number
+  // Campos derivados do Dashboard (composição local)
+  reservedInGoals?: number
+  availableFreeBalance?: number
 }
 
 export interface IncomeBreakdown {

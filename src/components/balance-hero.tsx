@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { ArrowUpIcon, ArrowDownIcon, InfoIcon } from "@phosphor-icons/react"
+import { ArrowUpIcon, ArrowDownIcon, InfoIcon, PiggyBankIcon } from "@phosphor-icons/react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { formatCurrency } from "@/lib/transactions/helpers"
 import { FinancialSummary } from "@/lib/transactions/types"
@@ -12,12 +12,12 @@ interface BalanceHeroProps {
 
 function getBalanceMessage(summary: FinancialSummary): string {
   if (summary.availableBalance < 0) {
-    return " saldo negativo"
+    return "Caixa do mês"
   }
   if (summary.balanceState === "zero_allocation") {
-    return "Todo o saldo alocado"
+    return "Caixa do mês"
   }
-  return "Disponível"
+  return "Caixa do mês"
 }
 
 function getBalanceColor(summary: FinancialSummary): string {
@@ -43,7 +43,13 @@ function getFinancialInterpretation(summary: FinancialSummary): { text: string; 
 }
 
 export function BalanceHero({ summary }: BalanceHeroProps) {
-  const isPositive = summary.availableBalance >= 0
+  // O valor principal é o caixa livre (Disponível - Reservado em metas)
+  // Se não tem reservedInGoals, usa availableBalance padrão
+  const displayBalance = summary.availableFreeBalance !== undefined 
+    ? summary.availableFreeBalance 
+    : summary.availableBalance
+    
+  const displayColor = displayBalance < 0 ? "text-secondary" : "text-foreground"
 
   return (
     <div className="p-6 rounded-xl bg-card border border-border space-y-4">
@@ -63,12 +69,12 @@ export function BalanceHero({ summary }: BalanceHeroProps) {
             </TooltipContent>
           </Tooltip>
         </div>
-        <p className={`font-heading text-5xl font-bold mt-2 ${getBalanceColor(summary)}`}>
-          {formatCurrency(summary.availableBalance)}
+        <p className={`font-heading text-5xl font-bold mt-2 ${displayColor}`}>
+          {formatCurrency(displayBalance)}
         </p>
-        {getFinancialInterpretation(summary) && (
-          <p className={`text-sm mt-2 ${getFinancialInterpretation(summary)?.color}`}>
-            {getFinancialInterpretation(summary)?.text}
+        {summary.reservedInGoals && summary.reservedInGoals > 0 && (
+          <p className="text-xs text-muted-foreground mt-1">
+            (Caixa bruto: {formatCurrency(summary.availableBalance)})
           </p>
         )}
       </div>
@@ -79,12 +85,12 @@ export function BalanceHero({ summary }: BalanceHeroProps) {
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <ArrowDownIcon className="h-4 w-4 text-red-400" weight="bold" />
-          <span>Comprometido: {formatCurrency(summary.committedExpenses)}</span>
+          <span>Despesas do mês: {formatCurrency(summary.committedExpenses + summary.applications)}</span>
         </div>
-        {summary.applications > 0 && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <ArrowUpIcon className="h-4 w-4 text-primary" weight="bold" />
-            <span>Aplicações: {formatCurrency(summary.applications)}</span>
+        {summary.reservedInGoals && summary.reservedInGoals > 0 && (
+          <div className="flex items-center gap-2 text-sm">
+            <PiggyBankIcon className="h-4 w-4 text-secondary" weight="bold" />
+            <span className="text-muted-foreground">Aporte das metas: {formatCurrency(summary.reservedInGoals)}</span>
           </div>
         )}
         {summary.monthlyProvisionedTotal > 0 && (

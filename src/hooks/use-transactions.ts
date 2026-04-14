@@ -14,6 +14,10 @@ import {
   calculateMonthlyProvisioning,
   getTransactionTitle,
   getTransactionSubtitle,
+  isInstallmentTransaction,
+  getInstallmentBadge,
+  getRemainingInstallments,
+  filterDisplayedTransactions,
   INCOME_TYPES,
   EXPENSE_NATURES,
   FREQUENCIES,
@@ -164,6 +168,7 @@ export { calculateExpenseBreakdown }
 export { calculateMonthlyProvisioning }
 export { getTransactionTitle }
 export { getTransactionSubtitle }
+export { isInstallmentTransaction, getInstallmentBadge, getRemainingInstallments, filterDisplayedTransactions }
 export { INCOME_TYPES, EXPENSE_NATURES, FREQUENCIES, PLANNING_STATUSES }
 
 export { usePlannedAmounts, calculatePlannedVsActual, checkAllOnTrack } from "./use-planned-amounts"

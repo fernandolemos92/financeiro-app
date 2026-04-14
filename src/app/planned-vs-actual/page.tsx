@@ -166,7 +166,7 @@ function NatureDetailModal({
           ) : (
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {natureTransactions.map((t) => (
-                <div key={t.id} className="flex justify-between items-center p-2 rounded bg-muted/50">
+                <div key={t.id} className="flex justify-between items-center px-4 py-3 rounded bg-muted/50">
                   <div>
                     <p className="text-sm text-foreground">{getTransactionLabel(t)}</p>
                     <p className="text-xs text-muted-foreground">{formatDate(t.date)}</p>
@@ -319,17 +319,18 @@ export default function PlannedVsActualPage() {
 
     const breakdown = { debt: 0, cost_of_living: 0, pleasure: 0, application: 0 }
 
-    transactions
+    const filtered = transactions
       .filter((t) => {
         const transactionMonth = `${new Date(t.date).getFullYear()}-${String(new Date(t.date).getMonth() + 1).padStart(2, "0")}`
         return transactionMonth === selectedMonth && t.type === "expense"
       })
-      .forEach((t) => {
-        const nature = t.expense_nature as ExpenseNature
-        if (nature in breakdown) {
-          breakdown[nature] += t.amount
-        }
-      })
+
+    filtered.forEach((t) => {
+      const nature = t.expense_nature as ExpenseNature
+      if (nature in breakdown) {
+        breakdown[nature] += t.amount
+      }
+    })
 
     return breakdown
   }, [transactions, isLoaded, selectedMonth])

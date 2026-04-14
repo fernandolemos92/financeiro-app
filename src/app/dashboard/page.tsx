@@ -38,20 +38,36 @@ export default function DashboardPage() {
   const { goals, updateGoalAmount, addGoal } = useGoals()
 
   const financialSummary: FinancialSummary = React.useMemo(() => {
-    if (!isLoaded || transactions.length === 0) {
-      return {
-        totalIncome: 0,
-        totalExpenses: 0,
-        committedExpenses: 0,
-        applications: 0,
-        availableBalance: 0,
-        balanceState: "positive",
-        isAllAllocated: false,
-        monthlyProvisionedTotal: 0,
-      }
+    // Calcular reservedInGoals separadamente - metas ativas
+    const activeGoals = goals?.filter(g => g.status === "active") || []
+    const reservedInGoals = activeGoals.reduce((sum, g) => sum + g.currentAmount, 0)
+    
+    // Base: se não tem transactions, usar valores padrão
+    let base: FinancialSummary = {
+      totalIncome: 0,
+      totalExpenses: 0,
+      committedExpenses: 0,
+      applications: 0,
+      availableBalance: 0,
+      balanceState: "positive",
+      isAllAllocated: false,
+      monthlyProvisionedTotal: 0,
     }
-    return calculateFinancialSummary(transactions)
-  }, [transactions, isLoaded])
+    
+    if (isLoaded && transactions.length > 0) {
+      base = calculateFinancialSummary(transactions)
+    }
+    
+    // disponível livre = disponível bruto - reservado em metas
+    const availableFreeBalance = base.availableBalance - reservedInGoals
+    
+    // Composition com campos derivados do Dashboard
+    return {
+      ...base,
+      reservedInGoals,
+      availableFreeBalance,
+    }
+  }, [transactions, isLoaded, goals])
 
   const incomeBreakdown: IncomeBreakdown = React.useMemo(() => {
     if (!isLoaded || transactions.length === 0) {
@@ -64,7 +80,24 @@ export default function DashboardPage() {
     if (!isLoaded || transactions.length === 0) {
       return { debt: 0, cost_of_living: 0, pleasure: 0, application: 0 }
     }
-    return calculateExpenseBreakdown(transactions)
+    const now = new Date()
+    const start = new Date(now.getFullYear(), now.getMonth(), 1)
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    
+    const filtered = transactions.filter(t => {
+      const date = new Date(t.date)
+      return date >= start && date <= end && t.type === "expense"
+    })
+    
+    const breakdown = { debt: 0, cost_of_living: 0, pleasure: 0, application: 0 }
+    filtered.forEach((t) => {
+      const nature = t.expense_nature
+      if (nature && nature in breakdown) {
+        breakdown[nature] += t.amount
+      }
+    })
+    
+    return breakdown
   }, [transactions, isLoaded])
 
   const plannedVsActual: PlannedVsActualItem[] = React.useMemo(() => {
@@ -290,8 +323,8 @@ export default function DashboardPage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-heading text-3xl font-bold text-foreground">Dashboard</h1>
-          <p className="mt-1 text-muted-foreground">Resumo financeiro do mês</p>
+          <h1 className="font-heading text-3xl font-bold text-foreground">Caixa do mês</h1>
+          <p className="mt-1 text-muted-foreground">Fluxo de receitas e despesas</p>
         </div>
       </div>
 
@@ -387,6 +420,10 @@ export default function DashboardPage() {
       </div>
 
       {/* Expense Nature Cards - Rich Cards with Planned vs Actual */}
+      <div className="pt-4">
+        <h2 className="text-lg font-semibold text-foreground">Orçamento do mês</h2>
+        <p className="text-sm text-muted-foreground">Planejado vs Realizado por categoria</p>
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {plannedVsActual.map((item) => {
               const totalOfExpenses = financialSummary.totalExpenses

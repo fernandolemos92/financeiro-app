@@ -19,6 +19,9 @@ interface AddTransactionModalProps {
     income_type?: IncomeType
     expense_nature?: ExpenseNature
     frequency?: Frequency
+    installment_total?: number
+    installment_number?: number
+    purchase_total_amount?: number
   }) => void
 }
 
@@ -45,6 +48,19 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
   const [expenseNature, setExpenseNature] = React.useState<ExpenseNature>("cost_of_living")
   const [frequency, setFrequency] = React.useState<Frequency>("occasional")
 
+  // Parcelamento toggle
+  const [useInstallments, setUseInstallments] = React.useState(false)
+  const [purchaseTotalAmount, setPurchaseTotalAmount] = React.useState("")
+  const [installmentTotal, setInstallmentTotal] = React.useState("")
+
+  // Determine if user has a valid parcelado transaction
+  // Only if: expense type AND installments enabled AND installmentTotal > 1
+  const isParcelado =
+    type === "expense" &&
+    useInstallments &&
+    installmentTotal &&
+    parseInt(installmentTotal) > 1
+
   const displayedCategories = React.useMemo(() => {
     return type === "income" ? getIncomeCategories() : getExpenseCategories()
   }, [type])
@@ -61,6 +77,9 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
     if (type === "income") {
       setCategory("")
       setSubcategory("")
+      setUseInstallments(false)
+      setInstallmentTotal("")
+      setPurchaseTotalAmount("")
     } else {
       setIncomeType("fixed")
     }
@@ -79,15 +98,31 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     const newErrors: { amount?: string; category?: string } = {}
-    if (!amount || parseFloat(amount) <= 0) {
-      newErrors.amount = "Digite um valor válido"
+
+    // Determine if this is an installment transaction
+    const isInstallment = useInstallments && installmentTotal ? parseInt(installmentTotal) > 1 : false
+
+    if (isInstallment) {
+      // For installments, validate purchase_total_amount and installmentTotal
+      if (!purchaseTotalAmount || parseFloat(purchaseTotalAmount) <= 0) {
+        newErrors.amount = "Digite um valor total da compra válido"
+      }
+      if (!installmentTotal || parseInt(installmentTotal) < 2) {
+        newErrors.category = "Número de parcelas deve ser no mínimo 2"
+      }
+    } else {
+      // For regular transactions, validate amount
+      if (!amount || parseFloat(amount) <= 0) {
+        newErrors.amount = "Digite um valor válido"
+      }
     }
+
     if (!category) {
       newErrors.category = "Selecione uma categoria"
     }
-    
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
       return
@@ -96,9 +131,21 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
     setIsSubmitting(true)
 
     try {
+      let calculatedAmount: number
+
+      if (isInstallment && purchaseTotalAmount && installmentTotal) {
+        // Calculate monthly amount by dividing purchase total by installment count
+        const purchaseTotal = parseFloat(purchaseTotalAmount) / 100
+        const installmentCount = parseInt(installmentTotal)
+        calculatedAmount = Math.round((purchaseTotal / installmentCount) * 100) / 100
+      } else {
+        // Use provided amount
+        calculatedAmount = parseFloat(amount) / 100
+      }
+
       const transactionData = {
         type,
-        amount: parseFloat(amount) / 100,
+        amount: calculatedAmount,
         category,
         description: description || undefined,
         date,
@@ -106,7 +153,17 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
 
       const transactionPayload = type === "income"
         ? { ...transactionData, income_type: incomeType }
-        : { ...transactionData, subcategory: subcategory || undefined, expense_nature: expenseNature, frequency }
+        : {
+            ...transactionData,
+            subcategory: subcategory || undefined,
+            expense_nature: expenseNature,
+            frequency,
+            ...(isInstallment && purchaseTotalAmount ? {
+              purchase_total_amount: parseFloat(purchaseTotalAmount) / 100,
+              installment_total: parseInt(installmentTotal),
+              installment_number: 1 // Always 1 for creation; backend generates series
+            } : {})
+          }
 
       await onAdd(transactionPayload)
 
@@ -134,6 +191,9 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
     setIncomeType("fixed")
     setExpenseNature("cost_of_living")
     setFrequency("monthly")
+    setUseInstallments(false)
+    setPurchaseTotalAmount("")
+    setInstallmentTotal("")
     setErrors({})
   }
 
@@ -216,31 +276,151 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
               </div>
             )}
 
-            {/* Amount Input */}
-            <div className="space-y-2">
-              <label htmlFor="amount" className="text-sm font-medium text-foreground">
-                Valor
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                  R$
-                </span>
-                <Input
-                  id="amount"
-                  type="text"
-                  inputMode="numeric"
-                  value={amount ? (parseInt(amount) / 100).toFixed(2).replace(".", ",") : ""}
-                  onChange={handleAmountChange}
-                  placeholder="0,00"
-                  className={`pl-10 pr-3 font-amount text-lg truncate ${errors.amount ? "border-destructive focus-visible:ring-destructive" : ""}`}
-                  aria-invalid={!!errors.amount}
-                  aria-describedby={errors.amount ? "amount-error" : undefined}
-                />
+            {/* Payment Method Selection - Only for Expenses */}
+            {type === "expense" && (
+              <div className="space-y-3">
+                <label className="text-sm font-medium text-foreground">
+                  Forma de Pagamento
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUseInstallments(false)
+                      setInstallmentTotal("")
+                      setPurchaseTotalAmount("")
+                    }}
+                    className={`p-3 rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card ${
+                      !useInstallments
+                        ? "bg-primary/20 border-primary/40"
+                        : "bg-muted/50 border-transparent hover:bg-muted"
+                    }`}
+                  >
+                    <span className="text-sm font-medium text-foreground">À Vista</span>
+                    <span className="text-xs text-muted-foreground block mt-1">Pagamento único</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUseInstallments(true)}
+                    className={`p-3 rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card ${
+                      useInstallments
+                        ? "bg-primary/20 border-primary/40"
+                        : "bg-muted/50 border-transparent hover:bg-muted"
+                    }`}
+                  >
+                    <span className="text-sm font-medium text-foreground">Parcelado</span>
+                    <span className="text-xs text-muted-foreground block mt-1">Múltiplas parcelas</span>
+                  </button>
+                </div>
               </div>
-              {errors.amount && (
-                <p id="amount-error" className="text-sm text-destructive">{errors.amount}</p>
-              )}
-            </div>
+            )}
+
+            {/* Amount Input - ONLY for non-parcelado transactions */}
+            {(type === "income" || (type === "expense" && !useInstallments)) && (
+              <div className="space-y-2">
+                <label htmlFor="amount" className="text-sm font-medium text-foreground">
+                  Valor
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                    R$
+                  </span>
+                  <Input
+                    id="amount"
+                    type="text"
+                    inputMode="numeric"
+                    value={amount ? (parseInt(amount) / 100).toFixed(2).replace(".", ",") : ""}
+                    onChange={handleAmountChange}
+                    placeholder="0,00"
+                    className={`pl-10 pr-3 font-amount text-lg truncate ${errors.amount ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                    aria-invalid={!!errors.amount}
+                    aria-describedby={errors.amount ? "amount-error" : undefined}
+                  />
+                </div>
+                {errors.amount && (
+                  <p id="amount-error" className="text-sm text-destructive">{errors.amount}</p>
+                )}
+              </div>
+            )}
+
+            {/* Installment Fields - ONLY for parcelado transactions */}
+            {type === "expense" && useInstallments && (
+              <div className="space-y-3">
+                <div className="rounded-lg bg-primary/5 border border-primary/20 p-3">
+                  <p className="text-sm text-foreground font-medium mb-1">Detalhes da Compra Parcelada</p>
+                  <p className="text-xs text-muted-foreground">
+                    Preencha o valor total e a quantidade de parcelas. O sistema calculará automaticamente o valor de cada parcela.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label htmlFor="purchase-total" className="text-sm font-medium text-foreground">
+                      Valor Total da Compra
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                        R$
+                      </span>
+                      <Input
+                        id="purchase-total"
+                        type="text"
+                        inputMode="numeric"
+                        value={purchaseTotalAmount ? (parseInt(purchaseTotalAmount) / 100).toFixed(2).replace(".", ",") : ""}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/[^0-9]/g, "")
+                          setPurchaseTotalAmount(value)
+                        }}
+                        placeholder="0,00"
+                        className="pl-10 pr-3 bg-muted/50"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label htmlFor="installment-total" className="text-sm font-medium text-foreground">
+                      Quantidade de Parcelas
+                    </label>
+                    <Input
+                      id="installment-total"
+                      type="number"
+                      min="2"
+                      max="360"
+                      value={installmentTotal}
+                      onChange={(e) => setInstallmentTotal(e.target.value)}
+                      placeholder="Ex: 12"
+                      className="bg-muted/50"
+                    />
+                  </div>
+                </div>
+
+                {/* Display calculated monthly amount */}
+                {isParcelado && purchaseTotalAmount && installmentTotal && (
+                  <div className="p-4 rounded-lg bg-primary/10 border border-primary/20 space-y-3">
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-2">Valor de cada parcela</p>
+                      <p className="text-2xl font-amount font-semibold text-foreground">
+                        R$ {(parseFloat(purchaseTotalAmount) / 100 / parseInt(installmentTotal)).toFixed(2).replace(".", ",")}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {parseInt(installmentTotal)}x em{" "}
+                        {parseInt(installmentTotal) === 1 ? "uma parcela" : `${parseInt(installmentTotal)} parcelas`}
+                      </p>
+                    </div>
+                    <div className="pt-3 border-t border-primary/20">
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        <span className="font-medium">ⓘ</span> A primeira parcela será lançada no mês atual. As demais serão criadas como "pendentes" para os próximos meses.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Error state for incomplete parcelamento */}
+                {useInstallments && (!purchaseTotalAmount || !installmentTotal || parseInt(installmentTotal) < 2) && (
+                  <p className="text-xs text-destructive">Preencha corretamente para ver o resumo</p>
+                )}
+              </div>
+            )}
 
             {/* Category Grid */}
             <div className="space-y-2">
@@ -343,6 +523,7 @@ export function AddTransactionModal({ isOpen, onClose, onAdd }: AddTransactionMo
                 </div>
               </>
             )}
+
 
             {/* Optional Description */}
             <div className="space-y-2">
