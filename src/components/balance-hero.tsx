@@ -1,8 +1,10 @@
 "use client"
 
 import * as React from "react"
-import { ArrowUpIcon, ArrowDownIcon, InfoIcon, PiggyBankIcon, CreditCardIcon } from "@phosphor-icons/react"
+import { ArrowUpIcon, ArrowDownIcon, InfoIcon, PiggyBankIcon, CreditCardIcon, PlusIcon } from "@phosphor-icons/react"
+import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useTransactionModal } from "@/contexts/transaction-modal-context"
 import { formatCurrency } from "@/lib/transactions/helpers"
 import { FinancialSummary, PlannedVsActualItem } from "@/lib/transactions/types"
 
@@ -12,6 +14,8 @@ interface BalanceHeroProps {
 }
 
 export function BalanceHero({ summary, plannedVsActual }: BalanceHeroProps) {
+  const { openModal } = useTransactionModal()
+  
   // Calcular posição orçamentária consolidada
   const totalPlanned = plannedVsActual?.reduce((sum, item) => sum + (item.planned || 0), 0) || 0
   const totalActual = plannedVsActual?.reduce((sum, item) => sum + item.actual, 0) || 0
@@ -22,9 +26,12 @@ export function BalanceHero({ summary, plannedVsActual }: BalanceHeroProps) {
   const marginLabel = budgetMargin >= 0 ? "Margem disponível" : "Acima do orçamento"
   const marginAbsValue = Math.abs(budgetMargin)
 
+  // Mostrar dados se tiver planned amounts OU se tiver alguma transação
+  const hasData = totalPlanned > 0 || summary.totalIncome > 0 || summary.committedExpenses > 0 || summary.applications > 0
+
   return (
     <div className="p-7 rounded-lg bg-card border border-border space-y-6">
-      {totalPlanned > 0 && (
+      {hasData ? (
         <>
           {/* NÍVEL 1: Contexto - Título com informação */}
           <div className="flex items-center gap-2">
@@ -104,6 +111,23 @@ export function BalanceHero({ summary, plannedVsActual }: BalanceHeroProps) {
             </div>
           </div>
         </>
+      ) : (
+        /* Empty State */
+        <div className="py-8 text-center space-y-4">
+          <div className="space-y-2">
+            <h3 className="text-lg font-semibold text-foreground">Bem-vindo ao seu caixa!</h3>
+            <p className="text-sm text-muted-foreground">
+              Comece adicionando sua primeira transação para ter uma visão clara das suas finanças.
+            </p>
+          </div>
+          <Button
+            onClick={openModal}
+            className="inline-flex items-center gap-2"
+          >
+            <PlusIcon size={16} weight="bold" />
+            Nova Transação
+          </Button>
+        </div>
       )}
     </div>
   )
